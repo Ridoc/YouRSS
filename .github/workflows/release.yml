@@ -48,10 +48,10 @@ jobs:
       - run: docker build -t yourss:test .
       - name: Run container and hit /healthz
         run: |
+          trap 'docker logs yourss-smoke || true; docker rm -f yourss-smoke || true' EXIT
           docker run -d --name yourss-smoke -e YOURSS_DB_PATH=/tmp/yourss.db -p 8000:8000 yourss:test
-          curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:8000/healthz
+          curl --fail --retry 30 --retry-delay 1 --retry-all-errors http://127.0.0.1:8000/healthz
           docker logs yourss-smoke
-          docker rm -f yourss-smoke
 
   # Same command as `just audit`
   python-audit:
