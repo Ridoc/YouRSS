@@ -14,10 +14,10 @@ CHART = Path(__file__).parents[1] / "charts" / "yourss"
 pytestmark = pytest.mark.skipif(shutil.which("helm") is None, reason="helm is not installed")
 
 
-def render() -> list[dict[str, Any]]:
+def render(*extra: str) -> list[dict[str, Any]]:
     helm = shutil.which("helm") or "helm"
     result = subprocess.run(  # noqa: S603 - helm is resolved above, the chart is local
-        [helm, "template", "yourss", str(CHART)],
+        [helm, "template", "yourss", str(CHART), *extra],
         check=True,
         capture_output=True,
         text=True,
@@ -36,6 +36,9 @@ def test_image_probes_rollout_and_runtime_user() -> None:
     assert container["readinessProbe"]["httpGet"]["path"] == "/healthz"
     assert pod["securityContext"]["runAsUser"] == 999
     assert pod["securityContext"]["fsGroup"] == 999
+    assert pod["automountServiceAccountToken"] is False
+    assert container["securityContext"]["readOnlyRootFilesystem"] is True
+    assert container["securityContext"]["capabilities"]["drop"] == ["ALL"]
 
 
 def test_settings_map_and_storage() -> None:
@@ -74,6 +77,9 @@ def test_settings_map_and_storage() -> None:
     assert expected <= set(env)
     assert env["YOURSS_DB_PATH"]["value"] == "/data/db/yourss.db"
     assert env["YOURSS_SECRET_KEY"]["valueFrom"]["secretKeyRef"]["name"].endswith("-env")
+    env_secret = next(doc for doc in docs if doc.get("kind") == "Secret" and doc["metadata"]["name"].endswith("-env"))
+    for key in ("YOURSS_SECRET_KEY", "YOURSS_SMTP_PASSWORD", "YOURSS_TURNSTILE_SECRET_KEY"):
+        assert env[key]["valueFrom"]["secretKeyRef"]["key"] in env_secret["stringData"]
 
     volumes = {volume["name"]: volume for volume in pod["volumes"]}
     assert volumes["data-db"]["persistentVolumeClaim"]["claimName"].endswith("-db")
@@ -83,3 +89,12 @@ def test_settings_map_and_storage() -> None:
     pvcs = [doc for doc in docs if doc.get("kind") == "PersistentVolumeClaim"]
     assert {doc["metadata"]["name"].rsplit("-", 1)[-1] for doc in pvcs} == {"db", "backup"}
     assert all(doc["spec"]["accessModes"] == ["ReadWriteOnce"] for doc in pvcs)
+
+
+def test_disabled_persistence_uses_empty_dir() -> None:
+    docs = render("--set", "persistence.db.enabled=false", "--set", "persistence.backup.enabled=false")
+    deployment = next(doc for doc in docs if doc.get("kind") == "Deployment")
+    volumes = {volume["name"]: volume for volume in deployment["spec"]["template"]["spec"]["volumes"]}
+    assert volumes["data-db"]["emptyDir"] == {}
+    assert volumes["data-backup"]["emptyDir"] == {}
+    assert not [doc for doc in docs if doc.get("kind") == "PersistentVolumeClaim"]

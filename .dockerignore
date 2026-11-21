@@ -9,7 +9,12 @@ dist/
 .venv/
 .python-version
 
-# Tests and coverage
+# Tests, docs and local fixtures (never copied into the image)
+tests/
+docs/
+samples/
+yourss-cache/
+plan-spec-*.yaml
 .coverage
 .pytest_cache/
 .coverage.*

@@ -124,7 +124,7 @@ Then visit [http://localhost:8000/](http://localhost:8000/)
 Using Docker you can run the latest image build on the latest commit:
 
 ```sh
-$ mkdir -p data/db data/cache data/backup
+$ install -d -o 999 -g 999 data/db data/cache data/backup
 $ docker run -d --name yourss \
     -u 999:999 \
     -e YOURSS_DB_PATH=/data/db/yourss.db \
@@ -197,7 +197,7 @@ Then visit [http://localhost:8000/](http://localhost:8000/)
 | YOURSS_IMPORT_EXPECT_SUBS | `0` | `yourss.importExpectSubs` | Fail-closed import floor: at least this many subscriptions |
 | YOURSS_VIDEO_DURATIONS | `False` | `yourss.videoDurations` | Scrape each channel's videos tab during warm-up and cache durations for overview badges |
 | YOURSS_DURATION_TTL | `PT6H` | `yourss.durationTtl` | Duration cache lifetime (ISO-8601 or seconds) |
-| YOURSS_SMTP_HOST |  | `yourss.smtp.host` | SMTP host for magic links. Unset logs a development link instead of sending mail; never run a public instance this way |
+| YOURSS_SMTP_HOST |  | `yourss.smtp.host` | SMTP host for magic links. Unset disables magic-link delivery (the app logs a warning, never the bearer link); configure SMTP for any public instance |
 | YOURSS_SMTP_PORT | `587` | `yourss.smtp.port` | SMTP port |
 | YOURSS_SMTP_USER |  | `yourss.smtp.username` | SMTP username |
 | YOURSS_SMTP_PASSWORD |  | `yourss.smtp.password` | SMTP password (Secret) |
