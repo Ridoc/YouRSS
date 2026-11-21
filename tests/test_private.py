@@ -18,9 +18,7 @@ def login(client: AsyncClient, user_id: int, secret: str) -> None:
     client.cookies.set(accounts.SESSION_COOKIE, accounts.create_session_cookie(secret, user_id, 1, 3600))
 
 
-async def test_private_mode_gates_reads_and_keeps_auth_reachable(
-    client: AsyncClient, monkeypatch: MonkeyPatch
-) -> None:
+async def test_private_mode_gates_reads_and_keeps_auth_reachable(client: AsyncClient, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(current_config, "private", True)
     home = await client.get("/")
     assert home.status_code == 303

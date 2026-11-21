@@ -58,9 +58,7 @@ async def _user_row(request: Request, user_id: int) -> aiosqlite.Row | None:
 
 
 @router.get("/admin/users", response_class=HTMLResponse)
-async def users_page(
-    request: Request, admin: accounts.Account = Depends(accounts.require_admin)
-) -> HTMLResponse:
+async def users_page(request: Request, admin: accounts.Account = Depends(accounts.require_admin)) -> HTMLResponse:
     db = request.app.state.db
     rows = await db.fetchall(
         """
@@ -219,9 +217,7 @@ async def delete_user(
     if target["role"] == "admin" and await _admin_count(request) <= 1:
         return _error(request, "The last admin cannot be deleted.")
     db = request.app.state.db
-    await db.execute(
-        "DELETE FROM login_tokens WHERE email = (SELECT email FROM users WHERE id = ?)", (user_id,)
-    )
+    await db.execute("DELETE FROM login_tokens WHERE email = (SELECT email FROM users WHERE id = ?)", (user_id,))
     await db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     await db.commit()
     await _audit(request, admin, "admin_user_deleted", f"user:{user_id}")
@@ -229,13 +225,9 @@ async def delete_user(
 
 
 @router.get("/admin/status", response_class=HTMLResponse)
-async def status_page(
-    request: Request, admin: accounts.Account = Depends(accounts.require_admin)
-) -> HTMLResponse:
+async def status_page(request: Request, admin: accounts.Account = Depends(accounts.require_admin)) -> HTMLResponse:
     db = request.app.state.db
-    counts = await db.fetchall(
-        "SELECT state, COUNT(*) AS count FROM warmup_status GROUP BY state ORDER BY state"
-    )
+    counts = await db.fetchall("SELECT state, COUNT(*) AS count FROM warmup_status GROUP BY state ORDER BY state")
     recent = await db.fetchall(
         "SELECT channel, state, last_ok_at, last_error, checked_at FROM warmup_status "
         "ORDER BY checked_at DESC LIMIT 100"

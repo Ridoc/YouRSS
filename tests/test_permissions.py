@@ -44,9 +44,7 @@ async def test_public_pages_are_read_from_the_database(
     assert public.status_code == 200
 
 
-async def test_authentication_and_admin_are_required(
-    client: AsyncClient, seed_user: SeedUser, secret_key: str
-) -> None:
+async def test_authentication_and_admin_are_required(client: AsyncClient, seed_user: SeedUser, secret_key: str) -> None:
     assert (await client.get("/account")).status_code == 401
     user_id = await seed_user(unique())
     login(client, user_id, secret_key)

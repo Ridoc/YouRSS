@@ -128,9 +128,7 @@ async def import_users_file(db: Database, settings: AppSettings) -> None:
     pages_total = sum(len(user["pages"]) for user in users)
     subs_total = sum(len(page["refs"]) for user in users for page in user["pages"])
     if settings.import_expect_pages and pages_total < settings.import_expect_pages:
-        raise RuntimeError(
-            f"users file has {pages_total} pages, expected at least {settings.import_expect_pages}"
-        )
+        raise RuntimeError(f"users file has {pages_total} pages, expected at least {settings.import_expect_pages}")
     if settings.import_expect_subs and subs_total < settings.import_expect_subs:
         raise RuntimeError(
             f"users file has {subs_total} subscriptions, expected at least {settings.import_expect_subs}"
@@ -332,9 +330,7 @@ async def add_subscription(
         raise SubscriptionError("subscription kind must be channel or playlist")
     try:
         async with db.transaction():
-            count = await db.fetchone(
-                "SELECT COUNT(*) FROM subscriptions WHERE page_id = ?", (page_id,)
-            )
+            count = await db.fetchone("SELECT COUNT(*) FROM subscriptions WHERE page_id = ?", (page_id,))
             if count is not None and int(count[0]) >= settings.max_page_subscriptions:
                 raise LimitError(f"subscription limit of {settings.max_page_subscriptions} reached")
             row = await db.fetchone(
@@ -361,9 +357,7 @@ async def add_subscription(
 
 
 async def delete_subscription(db: Database, page_id: int, subscription_id: int) -> None:
-    cursor = await db.execute(
-        "DELETE FROM subscriptions WHERE page_id = ? AND id = ?", (page_id, subscription_id)
-    )
+    cursor = await db.execute("DELETE FROM subscriptions WHERE page_id = ? AND id = ?", (page_id, subscription_id))
     await db.commit()
     if cursor.rowcount == 0:
         raise SubscriptionError("subscription not found")

@@ -242,9 +242,7 @@ def set_csrf_cookie(response: Response, token: str, *, secure: bool) -> None:
 def validate_csrf(request: Request, form_token: str | None) -> None:
     secret = str(getattr(request.app.state, "secret_key", "") or "")
     cookie = request.cookies.get(CSRF_COOKIE)
-    if not cookie or not form_token or not hmac.compare_digest(
-        cookie.encode(), form_token.encode()
-    ):
+    if not cookie or not form_token or not hmac.compare_digest(cookie.encode(), form_token.encode()):
         raise HTTPException(HTTP_403_FORBIDDEN, "CSRF token missing or invalid")
     if not _valid_csrf(secret, form_token, _csrf_user_id(request)):
         raise HTTPException(HTTP_403_FORBIDDEN, "CSRF token invalid")

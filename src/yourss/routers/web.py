@@ -169,8 +169,7 @@ async def user_login(
         login_token(user, secret),
         max_age=int(current_config.login_ttl.total_seconds()),
         path=f"/u/{user.name}",
-        secure=request.url.scheme == "https"
-        or (current_config.public_base_url or "").startswith("https://"),
+        secure=request.url.scheme == "https" or (current_config.public_base_url or "").startswith("https://"),
         httponly=True,
         samesite="lax",
     )

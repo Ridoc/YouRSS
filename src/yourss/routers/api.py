@@ -44,9 +44,7 @@ def _watched_csrf(request: Request, token: str | None) -> None:
 
 
 @router.get("/watched")
-async def get_watched(
-    request: Request, user: accounts.Account = Depends(accounts.require_user)
-) -> dict[str, int]:
+async def get_watched(request: Request, user: accounts.Account = Depends(accounts.require_user)) -> dict[str, int]:
     return await watched_store.get_watched(request.app.state.db, user.id)
 
 
@@ -58,9 +56,7 @@ async def update_watched(
     csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
 ) -> dict[str, int]:
     _watched_csrf(request, csrf_token)
-    return await watched_store.set_watched(
-        request.app.state.db, user.id, add=payload.add, remove=payload.remove
-    )
+    return await watched_store.set_watched(request.app.state.db, user.id, add=payload.add, remove=payload.remove)
 
 
 @router.post("/watched/import")

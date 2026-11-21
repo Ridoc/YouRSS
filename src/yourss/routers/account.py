@@ -94,15 +94,11 @@ async def update_account(
         if username in accounts.RESERVED_USERNAMES or not accounts.USERNAME_RE.match(username):
             return _error(request, "That username is not available.")
         try:
-            await db.execute(
-                "UPDATE users SET username = ? WHERE id = ?", (username, user.id)
-            )
+            await db.execute("UPDATE users SET username = ? WHERE id = ?", (username, user.id))
             await db.commit()
         except sqlite3.IntegrityError:
             return _error(request, "That username is already taken.")
-    await db.execute(
-        "UPDATE users SET display_name = ? WHERE id = ?", (display_name.strip()[:80], user.id)
-    )
+    await db.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name.strip()[:80], user.id))
     await db.commit()
     return _redirect("/account")
 
@@ -115,9 +111,7 @@ async def logout_all(
 ) -> RedirectResponse:
     accounts.validate_csrf(request, csrf_token)
     db = request.app.state.db
-    await db.execute(
-        "UPDATE users SET session_version = session_version + 1 WHERE id = ?", (user.id,)
-    )
+    await db.execute("UPDATE users SET session_version = session_version + 1 WHERE id = ?", (user.id,))
     await db.commit()
     out = _redirect("/login")
     out.delete_cookie(accounts.SESSION_COOKIE, path="/")
@@ -167,7 +161,7 @@ async def delete_account(
 ) -> HTMLResponse | RedirectResponse:
     accounts.validate_csrf(request, csrf_token)
     if confirm != "DELETE":
-        return _error(request, 'Type DELETE to confirm account deletion.')
+        return _error(request, "Type DELETE to confirm account deletion.")
     db = request.app.state.db
     admin_count = await db.fetchone("SELECT COUNT(*) FROM users WHERE role = 'admin'")
     if user.role == "admin" and admin_count is not None and int(admin_count[0]) <= 1:
@@ -332,5 +326,3 @@ async def reorder_subscriptions_route(
     except (SubscriptionError, ValueError) as error:
         return _error(request, str(error))
     return _redirect(f"/account/pages/{name}")
-
-

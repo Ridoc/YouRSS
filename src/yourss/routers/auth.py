@@ -51,7 +51,6 @@ async def login(
         title="Sign in",
         next=_safe_next(next),
         sent=bool(sent),
-
         turnstile_site_key=current_config.turnstile_site_key,
         legacy_login=current_config.users_file is not None,
     )

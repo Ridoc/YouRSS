@@ -149,9 +149,7 @@ def _password_from_row(row: aiosqlite.Row) -> Password | None:
 
 
 async def _channels_for_page(db: Database, page_id: int) -> list[str]:
-    rows = await db.fetchall(
-        "SELECT ref FROM subscriptions WHERE page_id = ? ORDER BY position, id", (page_id,)
-    )
+    rows = await db.fetchall("SELECT ref FROM subscriptions WHERE page_id = ? ORDER BY position, id", (page_id,))
     return [str(row["ref"]) for row in rows]
 
 

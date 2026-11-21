@@ -42,17 +42,13 @@ async def test_import_once_and_ms_to_seconds(db: "Database", seed_user: SeedUser
     assert "ignored" not in second
 
 
-async def test_api_requires_login_and_csrf(
-    client: AsyncClient, seed_user: SeedUser, secret_key: str
-) -> None:
+async def test_api_requires_login_and_csrf(client: AsyncClient, seed_user: SeedUser, secret_key: str) -> None:
     assert (await client.get("/api/watched")).status_code == 401
     user_id = await seed_user("apiwatcher")
     login(client, user_id, secret_key)
     token = await csrf(client)
     assert (await client.get("/api/watched")).json() == {}
-    response = await client.post(
-        "/api/watched", json={"add": ["v1"], "remove": []}, headers={"X-CSRF-Token": token}
-    )
+    response = await client.post("/api/watched", json={"add": ["v1"], "remove": []}, headers={"X-CSRF-Token": token})
     assert response.status_code == 200 and set(response.json()) == {"v1"}
     rejected = await client.post("/api/watched", json={"add": ["v2"], "remove": []})
     assert rejected.status_code == 403

@@ -124,9 +124,7 @@ async def test_lifespan_starts_the_warm_up_when_enabled(monkeypatch: MonkeyPatch
     assert started == [timedelta(minutes=29)]
 
 
-async def test_warm_round_reads_db_pages_and_records_failure(
-    db: Any, seed_user: Any, monkeypatch: MonkeyPatch
-) -> None:
+async def test_warm_round_reads_db_pages_and_records_failure(db: Any, seed_user: Any, monkeypatch: MonkeyPatch) -> None:
     from uuid import uuid4
 
     from yourss.async_utils import Kind, State, SubscriptionStatus
@@ -138,8 +136,7 @@ async def test_warm_round_reads_db_pages_and_records_failure(
 
     async def failed(names: list[str], api: object, *, refresh: bool = False) -> list[SubscriptionStatus]:
         return [
-            SubscriptionStatus(name=name, kind=Kind.CHANNEL, state=State.FAILED, reason="invalid")
-            for name in names
+            SubscriptionStatus(name=name, kind=Kind.CHANNEL, state=State.FAILED, reason="invalid") for name in names
         ]
 
     monkeypatch.setattr("yourss.warmup.async_fetch", failed)

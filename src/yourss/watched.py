@@ -25,9 +25,7 @@ async def set_watched(
     timestamp = int(time() if now is None else now)
     async with db.transaction():
         for video_id in remove or []:
-            await db.execute(
-                "DELETE FROM watched WHERE user_id = ? AND video_id = ?", (user_id, video_id)
-            )
+            await db.execute("DELETE FROM watched WHERE user_id = ? AND video_id = ?", (user_id, video_id))
         for video_id in add or []:
             await db.execute(
                 "INSERT INTO watched (user_id, video_id, watched_at) VALUES (?, ?, ?) "
@@ -63,9 +61,7 @@ async def import_watched(
                 "ON CONFLICT(user_id, video_id) DO UPDATE SET watched_at = excluded.watched_at",
                 (user_id, video_id, seconds or timestamp),
             )
-        await db.execute(
-            "UPDATE users SET watched_imported_at = ? WHERE id = ?", (str(timestamp), user_id)
-        )
+        await db.execute("UPDATE users SET watched_imported_at = ? WHERE id = ?", (str(timestamp), user_id))
         count = await db.fetchone("SELECT COUNT(*) FROM watched WHERE user_id = ?", (user_id,))
         excess = (int(count[0]) if count is not None else 0) - WATCHED_MAX
         if excess > 0:

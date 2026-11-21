@@ -75,6 +75,7 @@ class AccountMiddleware:
             or path.startswith(("/login", "/auth/", "/account", "/admin", "/u/"))
         )
         if noindex or request.state.user is not None:
+
             async def send_private_headers(message: Message) -> None:
                 if message["type"] == "http.response.start":
                     headers = MutableHeaders(scope=message)

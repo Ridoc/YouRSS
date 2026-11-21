@@ -176,9 +176,7 @@ async def enrich_durations(db: Database, videos: list[VideoDescription]) -> list
     ]
 
 
-async def page_context_with_durations(
-    db: Database, statuses: list[SubscriptionStatus]
-) -> PageContext:
+async def page_context_with_durations(db: Database, statuses: list[SubscriptionStatus]) -> PageContext:
     """Page context plus the cached durations, only when the feature is enabled."""
     context = page_context(statuses)
     context["videos"] = await enrich_durations(db, context["videos"])

@@ -185,9 +185,7 @@ async def test_missing_users_file_is_rejected(db: Database, tmp_path: Path) -> N
     await assert_nothing_imported(db)
 
 
-async def test_imported_user_claims_the_legacy_account(
-    client: AsyncClient, db: Database
-) -> None:
+async def test_imported_user_claims_the_legacy_account(client: AsyncClient, db: Database) -> None:
     await import_users_file(db, settings_for(DATA))
     await accounts.bootstrap_admin(db, AppSettings(admin_email="zeno@example.com", admin_username="zeno"))
     assert (await client.get("/u/zeno")).status_code == 401
@@ -196,9 +194,7 @@ async def test_imported_user_claims_the_legacy_account(
     assert page.status_code == 200
     match = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
     assert match is not None
-    response = await client.post(
-        "/auth/verify", data={"token": token, "csrf_token": match.group(1)}
-    )
+    response = await client.post("/auth/verify", data={"token": token, "csrf_token": match.group(1)})
     assert response.status_code == 303
     assert (await client.get("/u/zeno")).status_code == 200
     row = await db.fetchone("SELECT legacy_password_hash, email FROM users WHERE username = 'zeno'")

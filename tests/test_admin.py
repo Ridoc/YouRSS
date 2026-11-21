@@ -79,9 +79,7 @@ async def test_admin_manages_users(
     assert await db.fetchone("SELECT 1 FROM users WHERE id = ?", (user_id,)) is None
 
 
-async def test_admin_cannot_demote_or_delete_self(
-    client: AsyncClient, seed_user: SeedUser, secret_key: str
-) -> None:
+async def test_admin_cannot_demote_or_delete_self(client: AsyncClient, seed_user: SeedUser, secret_key: str) -> None:
     admin_id = await seed_user(unique("root"), role="admin")
     login(client, admin_id, secret_key)
     token = await csrf(client)
@@ -91,9 +89,7 @@ async def test_admin_cannot_demote_or_delete_self(
     assert response.status_code == 400
 
 
-async def test_status_page(
-    client: AsyncClient, db: "Database", seed_user: SeedUser, secret_key: str
-) -> None:
+async def test_status_page(client: AsyncClient, db: "Database", seed_user: SeedUser, secret_key: str) -> None:
     admin_id = await seed_user(unique("root"), role="admin")
     login(client, admin_id, secret_key)
     await db.execute(
