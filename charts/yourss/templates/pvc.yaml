@@ -1,0 +1,33 @@
+{{- if and .Values.persistence.db.enabled (not .Values.persistence.db.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "yourss.fullname" . }}-db
+  labels:
+    {{- include "yourss.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.persistence.db.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.db.size }}
+{{- end }}
+{{- if and .Values.persistence.backup.enabled (not .Values.persistence.backup.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "yourss.fullname" . }}-backup
+  labels:
+    {{- include "yourss.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.persistence.backup.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.backup.size }}
+{{- end }}

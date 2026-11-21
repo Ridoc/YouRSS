@@ -40,6 +40,8 @@ class VideoDescription(BaseModel, frozen=True):
     published_text: str | None = None
     views: int | None = None
     views_text: str | None = None
+    # Seconds, from the text Youtube displays ("12:03"); None when the page did not show it
+    duration_seconds: int | None = None
 
     @model_validator(mode="before")
     @classmethod

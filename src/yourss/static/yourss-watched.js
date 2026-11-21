@@ -5,13 +5,32 @@ import { $, $$, flag, store } from "yourss/core"
 
 /* ---------- watched videos: {video id: timestamp}, oldest entries dropped past a cap ---------- */
 const WATCHED_MAX = 3000
+const watchedData = $("#yourss-watched-data")
+const serverWatched = watchedData ? JSON.parse(watchedData.textContent || "{}") : null
 
-function readWatched() {
+function readLocalWatched() {
   try {
     return JSON.parse(store.get("watched") || "{}")
   } catch {
     return {}
   }
+}
+
+function readWatched() {
+  return serverWatched ? { ...serverWatched } : readLocalWatched()
+}
+
+function csrfToken() {
+  return document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || ""
+}
+
+async function watchedRequest(path, body) {
+  return fetch(path, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+    body: JSON.stringify(body),
+  })
 }
 
 function writeWatched(map) {
@@ -21,6 +40,30 @@ function writeWatched(map) {
   applyWatched()
 }
 
+async function syncWatched(add, remove) {
+  if (!serverWatched || (!add.length && !remove.length)) return
+  try {
+    const response = await watchedRequest("/api/watched", { add, remove })
+    if (response.ok) {
+      const data = await response.json()
+      Object.keys(serverWatched).forEach((id) => delete serverWatched[id])
+      Object.assign(serverWatched, data)
+    }
+  } catch {
+    // Offline: the next page load reads the server map; the local copy keeps working.
+  }
+}
+
+export async function importWatched() {
+  if (!serverWatched) return
+  const response = await watchedRequest("/api/watched/import", { watched: readLocalWatched() })
+  if (!response.ok) return
+  const data = await response.json()
+  Object.keys(serverWatched).forEach((id) => delete serverWatched[id])
+  Object.assign(serverWatched, data)
+  writeWatched({ ...data })
+}
+
 export function setWatched(ids, watched = true) {
   // Nothing is recorded while "Show new videos" is off
   if (!flag("new-videos")) {
@@ -28,14 +71,19 @@ export function setWatched(ids, watched = true) {
   }
   const map = readWatched()
   const now = Date.now()
+  const add = []
+  const remove = []
   for (const id of ids) {
     if (watched) {
       map[id] = now
+      add.push(id)
     } else {
       delete map[id]
+      remove.push(id)
     }
   }
   writeWatched(map)
+  syncWatched(add, remove)
 }
 
 // A copy of the feed (video id + channel), with the folder it was read from on the folders page: the

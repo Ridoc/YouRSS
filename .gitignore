@@ -2,6 +2,12 @@
 __pycache__
 *.pyc
 
+# Secrets and local state
+.env
+*.db
+*.db-wal
+*.db-shm
+
 # Generated
 /.coverage
 /dist/

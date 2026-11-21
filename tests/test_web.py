@@ -13,6 +13,19 @@ from yourss.youtube import ChannelPage, ChannelTab, YoutubeApi
 HTMX = {"HX-Request": "true"}
 
 
+async def test_lifespan_opens_the_database(client: AsyncClient) -> None:
+    from yourss.main import app
+    from yourss.settings import current_config
+
+    assert current_config.db_path.exists()
+    db = app.state.db
+    assert db is not None
+    version = await db.fetchone("PRAGMA user_version")
+    assert version is not None and int(version[0]) == 1
+    tables = {str(row[0]) for row in await db.fetchall("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert {"users", "pages", "subscriptions", "watched"} <= tables
+
+
 async def test_home(client: AsyncClient) -> None:
     # The home page is the tutorial: an editable page without any channel
     resp = await client.get("/")
@@ -119,7 +132,7 @@ async def test_user(client: AsyncClient) -> None:
     # A public page is served under its published name, without the password of its user
     resp = await client.get("/p/skate")
     assert resp.status_code == 200
-    assert "<title>YouRSS - /p/skate</title>" in resp.text
+    assert "<title>YouRSS+ - /p/skate</title>" in resp.text
     resp = await client.get("/p/podcast")
     assert resp.status_code == 404
 
@@ -169,10 +182,17 @@ async def test_page_content_invalid_names(client: AsyncClient) -> None:
     assert soup.find("template", id="yourss-failed-template") is not None
 
 
-@mark.parametrize("path", ["/foo", "/favicon.ico", "/robots.txt", "/foo,UCVooVnzQxPSTXTMzSi1s6uw"])
+@mark.parametrize("path", ["/foo", "/foo,UCVooVnzQxPSTXTMzSi1s6uw"])
 async def test_stray_path_is_not_a_page(client: AsyncClient, path: str) -> None:
     resp = await client.get(path)
     assert resp.status_code == 404
+
+
+async def test_favicon_and_robots_are_served(client: AsyncClient) -> None:
+    favicon = await client.get("/favicon.ico")
+    assert favicon.status_code == 200 and favicon.headers["content-type"].startswith("image/")
+    robots = await client.get("/robots.txt")
+    assert robots.status_code == 200 and "User-agent" in robots.text
 
 
 FOLDERS = ["Homepage", "Cards", "Podcast", "Music"]
@@ -207,7 +227,7 @@ async def test_user_folder(client: AsyncClient) -> None:
     assert resp.status_code == 200
     soup = BeautifulSoup(resp.text, "html.parser")
     (title,) = soup.select("title")
-    assert title.get_text() == "YouRSS - /u/alice"
+    assert title.get_text() == "YouRSS+ - /u/alice"
     # The folder of the address is open with its entries, its Home is the content
     assert [str(folder["data-folder"]) for folder in soup.select("details.yourss-folder[open]")] == ["Homepage"]
     links = [str(a["hx-push-url"]) for a in soup.select("ul[data-folder-list=Homepage] a")]
@@ -222,7 +242,7 @@ async def test_user_folder(client: AsyncClient) -> None:
     # A hidden page is served inside the user, the title names the user only
     resp = await client.get("/u/alice/Cards")
     (title,) = BeautifulSoup(resp.text, "html.parser").select("title")
-    assert title.get_text() == "YouRSS - /u/alice"
+    assert title.get_text() == "YouRSS+ - /u/alice"
 
     for unknown in ("unknown", "a" * 33, "podcast/more"):
         resp = await client.get(f"/u/alice/{unknown}")
@@ -240,7 +260,7 @@ async def test_user_folder_fragment(client: AsyncClient) -> None:
     soup = BeautifulSoup(resp.text, "html.parser")
     assert soup.select("html") == []
     (title,) = soup.select("title")
-    assert title.get_text() == "YouRSS - /u/alice"
+    assert title.get_text() == "YouRSS+ - /u/alice"
     assert soup.select("[data-folder-page=Homepage] div.yourss-video")
     cards = {str(a["hx-push-url"]) for a in soup.select(".yourss-video a.yourss-video-channel")}
     assert cards and all(link.startswith("/u/alice/Homepage?c=UC") for link in cards)
@@ -668,3 +688,20 @@ async def test_htmx_playlists_tab_without_playlists(client: AsyncClient) -> None
     soup = BeautifulSoup(resp.text, features="html.parser")
     # A dozen playlists, nothing more to load
     assert soup.select(".yourss-card") and not soup.select(".yourss-card[hx-get]")
+
+
+async def test_login_is_not_swallowed_by_the_subscriptions_route(client: AsyncClient) -> None:
+    # web.py /{subscriptions} would render its "not a page" error for /login; the auth router comes first
+    resp = await client.get("/login")
+    assert resp.status_code == 200
+    assert "This page does not exist" not in resp.text
+    soup = BeautifulSoup(resp.text, features="html.parser")
+    assert soup.select_one("form[action='/auth/request'] input[name=email]") is not None
+
+
+async def test_auth_request_is_not_swallowed_by_the_subscriptions_route(client: AsyncClient) -> None:
+    # The subscriptions route only accepts GET: a POST must reach the auth router, CSRF refusal included
+    resp = await client.post("/auth/request", data={"email": "nobody@example.com"})
+    assert resp.status_code != 405
+    assert resp.status_code != 404
+    assert resp.status_code in (403, 422)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import Any
@@ -67,6 +68,49 @@ def _views_from_metadata_rows(rows: Any) -> str | None:
                 return label
             if "view" in text.lower():
                 return text
+    return None
+
+
+_CLOCK_DURATION = re.compile(r"^(?:(\d+):)?(\d{1,2}):(\d{2})$")
+_WORD_PARTS = (
+    re.compile(r"(\d+)\s*hours?", re.I),
+    re.compile(r"(\d+)\s*minutes?", re.I),
+    re.compile(r"(\d+)\s*seconds?", re.I),
+)
+
+
+def duration_seconds(text: str | None) -> int | None:
+    """Parse "4:05", "1:02:03" or "1 hour, 2 minutes, 3 seconds"."""
+    if not text:
+        return None
+    compact = text.strip()
+    match = _CLOCK_DURATION.match(compact)
+    if match:
+        hours, minutes, seconds = (int(value or 0) for value in match.groups())
+        return hours * 3600 + minutes * 60 + seconds
+    if any(word in compact.lower() for word in ("hour", "minute", "second")):
+        values = []
+        for pattern in _WORD_PARTS:
+            found = pattern.search(compact)
+            values.append(int(found.group(1)) if found else 0)
+        hours, minutes, seconds = values
+        if hours or minutes or seconds:
+            return hours * 3600 + minutes * 60 + seconds
+    return None
+
+
+def _duration_from_metadata_rows(rows: Any) -> int | None:
+    if not isinstance(rows, list):
+        return None
+    for row in rows:
+        for part in row.get("metadataParts", []) if isinstance(row, dict) else []:
+            if not isinstance(part, dict):
+                continue
+            label = part.get("accessibilityLabel") or ""
+            text = part.get("text", {}).get("content") or ""
+            parsed = duration_seconds(str(label)) or duration_seconds(str(text))
+            if parsed is not None:
+                return parsed
     return None
 
 
@@ -137,13 +181,17 @@ class LockupVideoParser(ItemParser):
             return None
         thumbnail = glom(node, self._THUMBNAIL)
         rows = glom(node, self._METADATA_ROWS)
-        return {
+        out = {
             "video_id": video_id,
             "title": glom(node, self._TITLE) or "",
             "published_text": _published_from_metadata_rows(rows),
             "views_text": _views_from_metadata_rows(rows),
             "thumbnail": simple_url(thumbnail) if thumbnail else None,
         }
+        duration = _duration_from_metadata_rows(rows)
+        if duration is not None:
+            out["duration_seconds"] = duration
+        return out
 
 
 class PlaylistLockupParser(LockupVideoParser):
@@ -182,6 +230,7 @@ class LegacyVideoParser(ItemParser):
     _TITLE = Coalesce("title.runs.0.text", "title.simpleText", default=None)
     _PUBLISHED = Coalesce("publishedTimeText.simpleText", default=None)
     _VIEWS = Coalesce("viewCountText.simpleText", default=None)
+    _LENGTH = Coalesce("lengthText.simpleText", default=None)
     _THUMBNAIL = Coalesce("thumbnail.thumbnails.0.url", default=None)
 
     def extract(self, node: dict[str, Any]) -> dict[str, Any] | None:
@@ -189,13 +238,17 @@ class LegacyVideoParser(ItemParser):
         if not video_id:
             return None
         thumbnail = glom(node, self._THUMBNAIL)
-        return {
+        out = {
             "video_id": video_id,
             "title": glom(node, self._TITLE) or "",
             "published_text": glom(node, self._PUBLISHED),
             "views_text": glom(node, self._VIEWS),
             "thumbnail": simple_url(thumbnail) if thumbnail else None,
         }
+        length = duration_seconds(glom(node, self._LENGTH))
+        if length is not None:
+            out["duration_seconds"] = length
+        return out
 
 
 class ShortsLockupParser(ItemParser):

@@ -1,10 +1,10 @@
-name: Build & Tests
+name: Build, test and publish image
 
 on: [push]
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ghcr.io/ridoc/yourss
 
 jobs:
   # Same commands as `just check`
@@ -32,6 +32,24 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run --no-sync -- pytest --cov=yourss --cov-report=term-missing
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.18.4
+      - run: uv run --no-sync -- pytest tests/test_helm.py -q
+
+  docker-smoke:
+    name: Docker image smoke
+    needs: [python-check, python-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: docker build -t yourss:test .
+      - name: Run container and hit /healthz
+        run: |
+          docker run -d --name yourss-smoke -e YOURSS_DB_PATH=/tmp/yourss.db -p 8000:8000 yourss:test
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:8000/healthz
+          docker logs yourss-smoke
+          docker rm -f yourss-smoke
 
   # Same command as `just audit`
   python-audit:
@@ -49,7 +67,7 @@ jobs:
 
   docker-build:
     name: Build docker image
-    needs: [python-check, python-test]
+    needs: [python-check, python-test, docker-smoke]
     # The token of the run is enough to push to ghcr.io, once the package grants this repository write access
     permissions:
       contents: read
@@ -65,12 +83,10 @@ jobs:
       - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
         with:
-          images: ghcr.io/essembeh/yourss
+          images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=schedule
             type=ref,event=branch
             type=ref,event=tag
-            type=ref,event=pr
             type=raw,value=latest,enable={{is_default_branch}}
       - name: Build and push Docker image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -78,45 +94,3 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
-
-  # Optional: without the RENDER_DEPLOY_HOOK_URL secret there is no demo instance and nothing happens
-  demo-deploy:
-    name: Redeploy the demo instance
-    if: ${{ github.ref == 'refs/heads/main' }}
-    needs: docker-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Ask Render to deploy the image just built from main
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "No demo instance configured"
-            exit 0
-          fi
-          # The hook URL is a secret: its answer is not printed
-          curl --fail --silent --show-error --output /dev/null \
-            "${RENDER_DEPLOY_HOOK_URL}&imgURL=ghcr.io%2Fessembeh%2Fyourss%3Amain"
-
-  helm-release:
-    name: Update Helm repository
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    needs: docker-build
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-      - name: Install Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
-        env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

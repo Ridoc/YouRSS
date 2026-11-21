@@ -8,6 +8,9 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
+  # WHY: SQLite is single-writer; a surge pod would mount the same RWO volume and race migrations/warm-up.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "yourss.selectorLabels" . | nindent 6 }}
@@ -68,9 +71,71 @@ spec:
               value: {{ .Values.yourss.cacheMetadataTtl | quote }}
             - name: YOURSS_LOGIN_TTL
               value: {{ .Values.yourss.loginTtl | quote }}
+            - name: YOURSS_DB_PATH
+              value: {{ .Values.yourss.dbPath | quote }}
+            - name: YOURSS_PUBLIC_BASE_URL
+              value: {{ .Values.yourss.publicBaseUrl | quote }}
+            - name: YOURSS_REGISTRATION_ENABLED
+              value: {{ .Values.yourss.registrationEnabled | quote }}
+            - name: YOURSS_SESSION_TTL
+              value: {{ .Values.yourss.sessionTtl | quote }}
+            - name: YOURSS_PRIVATE
+              value: {{ .Values.yourss.private | quote }}
+            - name: YOURSS_NOINDEX
+              value: {{ .Values.yourss.noindex | quote }}
+            - name: YOURSS_ADMIN_EMAIL
+              value: {{ .Values.yourss.adminEmail | quote }}
+            - name: YOURSS_ADMIN_USERNAME
+              value: {{ .Values.yourss.adminUsername | quote }}
+            - name: YOURSS_MAX_PAGES_PER_USER
+              value: {{ .Values.yourss.maxPagesPerUser | quote }}
+            - name: YOURSS_MAX_PAGE_SUBSCRIPTIONS
+              value: {{ .Values.yourss.maxPageSubscriptions | quote }}
+            - name: YOURSS_FORWARDED_ALLOW_IPS
+              value: {{ .Values.yourss.forwardedAllowIps | quote }}
+            - name: YOURSS_IMPORT_EXPECT_PAGES
+              value: {{ .Values.yourss.importExpectPages | quote }}
+            - name: YOURSS_IMPORT_EXPECT_SUBS
+              value: {{ .Values.yourss.importExpectSubs | quote }}
+            - name: YOURSS_VIDEO_DURATIONS
+              value: {{ .Values.yourss.videoDurations | quote }}
+            - name: YOURSS_DURATION_TTL
+              value: {{ .Values.yourss.durationTtl | quote }}
+            - name: YOURSS_SMTP_HOST
+              value: {{ .Values.yourss.smtp.host | quote }}
+            - name: YOURSS_SMTP_PORT
+              value: {{ .Values.yourss.smtp.port | quote }}
+            - name: YOURSS_SMTP_USER
+              value: {{ .Values.yourss.smtp.username | quote }}
+            - name: YOURSS_SMTP_STARTTLS
+              value: {{ .Values.yourss.smtp.starttls | quote }}
+            - name: YOURSS_SMTP_SSL
+              value: {{ .Values.yourss.smtp.ssl | quote }}
+            - name: YOURSS_SMTP_FROM
+              value: {{ .Values.yourss.smtp.from | quote }}
+            - name: YOURSS_TURNSTILE_SITE_KEY
+              value: {{ .Values.yourss.turnstile.siteKey | quote }}
+            - name: YOURSS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yourss.fullname" . }}-env
+                  key: YOURSS_SECRET_KEY
+            - name: YOURSS_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yourss.fullname" . }}-env
+                  key: YOURSS_SMTP_PASSWORD
+            - name: YOURSS_TURNSTILE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yourss.fullname" . }}-env
+                  key: YOURSS_TURNSTILE_SECRET_KEY
             {{- if .Values.yourss.users }}
             - name: YOURSS_USERS_FILE
               value: /yourss/users.yaml
+            {{- else if .Values.yourss.usersFile }}
+            - name: YOURSS_USERS_FILE
+              value: {{ .Values.yourss.usersFile | quote }}
             {{- end }}
             {{- with .Values.yourss.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -81,17 +146,24 @@ spec:
               protocol: TCP
           livenessProbe:
             httpGet:
+              # WHY: /healthz can be 503 on a transient DB/cache problem; liveness must not restart the pod.
               path: /api/version
               port: http
           readinessProbe:
             httpGet:
-              path: /api/version
+              path: /healthz
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: data-db
+              mountPath: /data/db
+            - name: data-cache
+              mountPath: /data/cache
+            - name: data-backup
+              mountPath: /data/backup
             {{- if .Values.yourss.users }}
             - name: users
               mountPath: /yourss
@@ -103,6 +175,22 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: data-db
+          {{- if .Values.persistence.db.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.db.existingClaim | default (printf "%s-db" (include "yourss.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: data-cache
+          emptyDir: {}
+        - name: data-backup
+          {{- if .Values.persistence.backup.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.backup.existingClaim | default (printf "%s-backup" (include "yourss.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
         {{- if .Values.yourss.users }}
         - name: users
           secret:

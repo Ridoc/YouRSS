@@ -1,0 +1,200 @@
+# Synthetic one-time import fixture (tests/test_import.py): 12 pages, 149 refs, 73 distinct handles.
+# The password is the dummy argon2 hash of "foo" published by samples/users.yaml, not a secret.
+users:
+  - name: zeno
+    password: { method: argon2, value: "$argon2i$v=19$m=4096,t=3,p=1$c29tZXNhbHQ$y+awVl4ev1h6eG8IbOrPAAjANRIbraM51FL50Pcf/B8" }
+    pages:
+      - name: Page01
+        publish: wire
+        channels:
+          - "@creator01"
+          - "@creator02"
+          - "@creator03"
+          - "@creator04"
+          - "@creator05"
+          - "@creator06"
+          - "@creator07"
+          - "@creator08"
+          - "@creator09"
+          - "@creator10"
+          - "@creator11"
+          - "@creator12"
+          - "@creator13"
+
+      - name: Page02
+        publish: frames
+        channels:
+          - "@creator14"
+          - "@creator15"
+          - "@creator16"
+          - "@creator17"
+          - "@creator18"
+          - "@creator19"
+          - "@creator20"
+          - "@creator21"
+          - "@creator22"
+          - "@creator23"
+          - "@creator24"
+          - "@creator25"
+          - "@creator26"
+
+      - name: Page03
+        channels:
+          - "@creator27"
+          - "@creator28"
+          - "@creator29"
+          - "@creator30"
+          - "@creator31"
+          - "@creator32"
+          - "@creator33"
+          - "@creator34"
+          - "@creator35"
+          - "@creator36"
+          - "@creator37"
+          - "@creator38"
+          - "@creator39"
+
+      - name: Page04
+        publish: loop
+        warmup: false
+        channels:
+          - "@creator40"
+          - "@creator41"
+          - "@creator42"
+          - "@creator43"
+          - "@creator44"
+          - "@creator45"
+          - "@creator46"
+          - "@creator47"
+          - "@creator48"
+          - "@creator49"
+          - "@creator50"
+          - "@creator51"
+          - "@creator52"
+
+      - name: Page05
+        publish: signal
+        channels:
+          - "@creator53"
+          - "@creator54"
+          - "@creator55"
+          - "@creator56"
+          - "@creator57"
+          - "@creator58"
+          - "@creator59"
+          - "@creator60"
+          - "@creator61"
+          - "@creator62"
+          - "@creator63"
+          - "@creator64"
+          - "@creator65"
+
+      - name: Page06
+        publish: noise
+        channels:
+          - "@creator66"
+          - "@creator67"
+          - "@creator68"
+          - "@creator69"
+          - "@creator70"
+          - "@creator71"
+          - "@creator72"
+          - "@creator73"
+          - "@creator01"
+          - "@creator02"
+          - "@creator03"
+          - "@creator04"
+
+      - name: Page07
+        publish: pulse
+        channels:
+          - "@creator05"
+          - "@creator06"
+          - "@creator07"
+          - "@creator08"
+          - "@creator09"
+          - "@creator10"
+          - "@creator11"
+          - "@creator12"
+          - "@creator13"
+          - "@creator14"
+          - "@creator15"
+          - "@creator16"
+
+      - name: Page08
+        publish: drift
+        channels:
+          - "@creator17"
+          - "@creator18"
+          - "@creator19"
+          - "@creator20"
+          - "@creator21"
+          - "@creator22"
+          - "@creator23"
+          - "@creator24"
+          - "@creator25"
+          - "@creator26"
+          - "@creator27"
+          - "@creator28"
+
+      - name: Page09
+        channels:
+          - "@creator29"
+          - "@creator30"
+          - "@creator31"
+          - "@creator32"
+          - "@creator33"
+          - "@creator34"
+          - "@creator35"
+          - "@creator36"
+          - "@creator37"
+          - "@creator38"
+          - "@creator39"
+          - "@creator40"
+
+      - name: Page10
+        publish: echo
+        channels:
+          - "@creator41"
+          - "@creator42"
+          - "@creator43"
+          - "@creator44"
+          - "@creator45"
+          - "@creator46"
+          - "@creator47"
+          - "@creator48"
+          - "@creator49"
+          - "@creator50"
+          - "@creator51"
+          - "@creator52"
+
+      - name: Page11
+        channels:
+          - "@creator53"
+          - "@creator54"
+          - "@creator55"
+          - "@creator56"
+          - "@creator57"
+          - "@creator58"
+          - "@creator59"
+          - "@creator60"
+          - "@creator61"
+          - "@creator62"
+          - "@creator63"
+          - "@creator64"
+
+      - name: Page12
+        publish: zenith
+        channels:
+          - "@creator65"
+          - "@creator66"
+          - "@creator67"
+          - "@creator68"
+          - "@creator69"
+          - "@creator70"
+          - "@creator71"
+          - "@creator72"
+          - "@creator73"
+          - "UCVooVnzQxPSTXTMzSi1s6uw"
+          - "PLw-vK1_d04zZCal3yMX_T23h5nDJ2toTk"
+          - "PLS66eMqyKkK2o9y7b1kE-q24xWuC8tB2B"

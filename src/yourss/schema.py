@@ -3,14 +3,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppSettings(BaseSettings):
     """Every setting is a YOURSS_<NAME> environment variable (see the README and the Helm values)."""
 
-    model_config = SettingsConfigDict(env_prefix="YOURSS_")
+    # WHY: compose/Helm often render optional settings as empty strings; EmailStr would reject "".
+    model_config = SettingsConfigDict(env_prefix="YOURSS_", env_ignore_empty=True)
 
     # Let visitors build their own multi channel page; off, only user and channel pages remain
     custom_pages_enabled: bool = True
@@ -18,8 +19,47 @@ class AppSettings(BaseSettings):
     max_page_items: int = Field(default=12, ge=1)
     # Serve the generated API documentation (/docs, /redoc, /openapi.json); off outside development
     api_docs_enabled: bool = False
-    # YAML file declaring the user pages
+    # SQLite file; its parent is created at startup, the file plus WAL/SHM are 0600
+    db_path: Path = Path("yourss.db")
+    # HMAC signing key; env wins, otherwise generated once into the settings table
+    secret_key: SecretStr | None = None
+    # Absolute base for magic links; never derived from the request Host header
+    public_base_url: str | None = None
+    # Browser session lifetime
+    session_ttl: timedelta = timedelta(days=30)
+    # Allow unknown emails to create an account on first verified magic link
+    registration_enabled: bool = False
+    # Gate every HTML/htmx read behind a session
+    private: bool = False
+    # Emit robots Disallow and X-Robots-Tag
+    noindex: bool = False
+    # SMTP delivery; unset host logs magic links (development only)
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_user: str | None = None
+    smtp_password: SecretStr | None = None
+    smtp_starttls: bool = True
+    smtp_ssl: bool = False
+    smtp_from: str | None = None
+    # Cloudflare Turnstile; unset secret disables the CAPTCHA
+    turnstile_site_key: str | None = None
+    turnstile_secret_key: SecretStr | None = None
+    # Operator bootstrap account
+    admin_email: EmailStr | None = None
+    admin_username: str | None = None
+    # Per-user limits; imported pages may exceed the subscription cap once
+    max_pages_per_user: int = Field(default=50, ge=1)
+    max_page_subscriptions: int = Field(default=200, ge=1)
+    # Only these direct peers may supply CF-Connecting-IP / X-Forwarded-For
+    forwarded_allow_ips: str = "127.0.0.1"
+    # #17: fetch and cache video durations during warm-up
+    video_durations: bool = False
+    duration_ttl: timedelta = timedelta(hours=6)
+    # YAML file declaring the user pages; one-time import source
     users_file: Path | None = None
+    # Import safety floor (0 disables the check)
+    import_expect_pages: int = Field(default=0, ge=0)
+    import_expect_subs: int = Field(default=0, ge=0)
     # Capitalize the titles to tame UPPERCASE ones
     clean_titles: bool = False
     # Disk cache of the feeds and channel metadata (docs/specs/disk-cache.md), off by default; a temporary folder when
@@ -38,9 +78,13 @@ class AppSettings(BaseSettings):
     login_ttl: timedelta = timedelta(days=90)
 
     @model_validator(mode="after")
-    def _check_cache_ttls(self) -> Self:
+    def _check_ttls(self) -> Self:
         if self.cache_rss_ttl > self.cache_rss_fallback_ttl:
             raise ValueError("cache_rss_ttl must not exceed cache_rss_fallback_ttl")
+        if self.session_ttl <= timedelta(0):
+            raise ValueError("session_ttl must be positive")
+        if self.duration_ttl <= timedelta(0):
+            raise ValueError("duration_ttl must be positive")
         return self
 
 

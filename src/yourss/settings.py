@@ -32,6 +32,13 @@ def check_writable(folder: Path) -> None:
         probe.unlink(missing_ok=True)
 
 
+def database_path(config: AppSettings) -> Path:
+    """The configured SQLite path, with its parent created before the connection opens."""
+    path = config.db_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def setup_cache_folder(config: AppSettings) -> None:
     """Make the cache folder usable, or fail: a cache that was asked for must work (docs/specs/disk-cache.md)."""
     if not config.cache_enabled:

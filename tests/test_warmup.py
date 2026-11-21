@@ -1,7 +1,9 @@
 import asyncio
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
+from fastapi import FastAPI
 from loguru import logger
 from pytest import MonkeyPatch
 
@@ -100,22 +102,58 @@ def test_warm_interval_is_a_minute_before_the_ttl() -> None:
 async def test_lifespan_starts_the_warm_up_when_enabled(monkeypatch: MonkeyPatch) -> None:
     started: list[timedelta] = []
 
-    async def fake_forever(interval: timedelta) -> None:
+    async def fake_forever(interval: timedelta, db: object = None) -> None:
         started.append(interval)
         await asyncio.sleep(3600)
 
     monkeypatch.setattr("yourss.main.warm_forever", fake_forever)
+    app = FastAPI()
     monkeypatch.setattr(current_config, "cache_rss_ttl", timedelta(minutes=30))
     monkeypatch.setattr(current_config, "warmup_enabled", False)
-    async with lifespan(None):  # type: ignore[arg-type]
+    async with lifespan(app):
         pass
     assert started == []
     monkeypatch.setattr(current_config, "warmup_enabled", True)
-    async with lifespan(None):  # type: ignore[arg-type]
+    async with lifespan(app):
         await asyncio.sleep(0)
     assert started == [timedelta(minutes=29)]
     # Without a cache there is nothing to warm up
     monkeypatch.setattr(current_config, "cache_enabled", False)
-    async with lifespan(None):  # type: ignore[arg-type]
+    async with lifespan(app):
         await asyncio.sleep(0)
     assert started == [timedelta(minutes=29)]
+
+
+async def test_warm_round_reads_db_pages_and_records_failure(
+    db: Any, seed_user: Any, monkeypatch: MonkeyPatch
+) -> None:
+    from uuid import uuid4
+
+    from yourss.async_utils import Kind, State, SubscriptionStatus
+    from yourss.subscriptions import add_subscription, create_page
+
+    user_id = await seed_user(f"warm-{uuid4().hex[:8]}")
+    page = await create_page(db, current_config, user_id, f"Page-{uuid4().hex[:4]}")
+    await add_subscription(db, current_config, int(page["id"]), "not-a-ref")
+
+    async def failed(names: list[str], api: object, *, refresh: bool = False) -> list[SubscriptionStatus]:
+        return [
+            SubscriptionStatus(name=name, kind=Kind.CHANNEL, state=State.FAILED, reason="invalid")
+            for name in names
+        ]
+
+    monkeypatch.setattr("yourss.warmup.async_fetch", failed)
+    await warm_round(db)
+    row = await db.fetchone("SELECT state, last_error FROM warmup_status WHERE channel = ?", ("not-a-ref",))
+    assert row is not None and row["state"] == "failed" and row["last_error"] == "invalid"
+
+
+async def test_warm_round_ignores_a_deleted_page(db: Any, seed_user: Any, monkeypatch: MonkeyPatch) -> None:
+    from uuid import uuid4
+
+    from yourss.subscriptions import create_page, delete_page
+
+    user_id = await seed_user(f"warm-{uuid4().hex[:8]}")
+    page = await create_page(db, current_config, user_id, f"Page-{uuid4().hex[:4]}")
+    await delete_page(db, user_id, str(page["name"]))
+    await warm_round(db)

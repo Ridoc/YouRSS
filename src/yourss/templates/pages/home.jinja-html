@@ -10,7 +10,7 @@
   <header class="yourss-home-hero">
     <h1>Your Youtube channels,<br /><em>without an account</em></h1>
     <details class="yourss-home-about">
-      <summary>What is YouRSS? <svg><use href="#i-chevron" /></svg></summary>
+      <summary>What is YouRSS+? <svg><use href="#i-chevron" /></svg></summary>
       <p class="yourss-home-lead">The latest videos of the channels you choose, on one page, straight from the RSS feeds Youtube publishes.</p>
       <ul class="yourss-home-pills">
         <li><svg><use href="#i-check" /></svg>No account</li>
@@ -18,7 +18,7 @@
         <li><svg><use href="#i-check" /></svg>No recommendations</li>
         <li><svg><use href="#i-check" /></svg>Nothing stored on the server</li>
       </ul>
-      <p class="yourss-home-source">YouRSS is free software, available on <a href="https://github.com/essembeh/YouRSS" target="_blank" rel="noopener"><svg><use href="#i-github" /></svg>GitHub</a>: anyone can install their own instance.</p>
+      <p class="yourss-home-source">YouRSS+ is free software, available on <a href="https://github.com/Ridoc/YouRSS" target="_blank" rel="noopener"><svg><use href="#i-github" /></svg>GitHub</a>: anyone can install their own instance. It is a fork of <a href="https://github.com/essembeh/YouRSS" target="_blank" rel="noopener">YouRSS</a>.</p>
     </details>
   </header>
 

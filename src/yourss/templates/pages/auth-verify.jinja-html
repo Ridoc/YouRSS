@@ -1,0 +1,33 @@
+{# Magic-link confirmation: GET only shows this page; the POST below consumes the token #}
+{% extends "pages/base.jinja-html" %}
+{% block content %}
+<div class="yourss-login-overlay">
+  <div class="yourss-login">
+    <svg class="yourss-login-lock" aria-hidden="true"><use href="#i-lock" /></svg>
+    <h1>Confirm sign-in</h1>
+
+    {% if disabled %}
+    <div class="yourss-notice is-warning" role="alert">This account is disabled. Contact the admin.</div>
+    <a class="yourss-btn" href="/login"><span>Back to sign in</span></a>
+    {% elif registration_closed %}
+    <div class="yourss-notice is-warning" role="alert">Registration is closed. Ask the admin for an invite.</div>
+    <a class="yourss-btn" href="/login"><span>Back to sign in</span></a>
+    {% elif valid %}
+    <p>Sign in as <strong>{{ email }}</strong>?</p>
+    <p class="yourss-settings-note">This page does not sign you in yet. Confirm below.</p>
+    <form method="post" action="/auth/verify">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <input type="hidden" name="token" value="{{ token }}" />
+      <input type="hidden" name="next" value="{{ next or '/account' }}" />
+      <button type="submit" class="yourss-btn"><span>Sign in</span></button>
+    </form>
+    <a class="yourss-settings-note" href="/login">Use a different email</a>
+    {% else %}
+    <div class="yourss-notice is-warning" role="alert">
+      {% if expired %}That link has expired. Request a new one.{% else %}That link is not valid. Request a new one.{% endif %}
+    </div>
+    <a class="yourss-btn" href="/login"><span>Request new link</span></a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

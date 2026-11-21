@@ -25,7 +25,7 @@
  * htmx hooks).
  */
 import { $, $$, flag, focusVideo, focusedVideo, listening, on, store, videoOf, visibleVideos } from "yourss/core"
-import { applyWatched, captureFeed, feedIds, setWatched } from "yourss/watched"
+import { applyWatched, captureFeed, feedIds, importWatched, setWatched } from "yourss/watched"
 import { enterListen, listenInUrl, listenNav, listenNavGo, listenNavUnfold, listenRefresh, withListen } from "yourss/listen"
 import {
   closePlayer,
@@ -515,6 +515,7 @@ const actions = {
   },
   "mark-feed-watched": () => setWatched(feedIds()),
   // The videos listed on the channel page, plus the ones the feed knows for this channel.
+  "import-watched": () => importWatched(),
   "mark-channel-watched": (el) => {
     const onPage = $$("#tab-content .yourss-video[data-video-id]").map((video) => video.dataset.videoId)
     setWatched([...onPage, ...feedIds(el.dataset.channelId)])

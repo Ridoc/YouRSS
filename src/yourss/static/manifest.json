@@ -1,8 +1,9 @@
 {
-  "name": "YouRSS",
-  "short_name": "YouRSS",
-  "description": "Simple Youtube browser based on RSS feeds",
+  "name": "YouRSS+",
+  "short_name": "YouRSS+",
+  "description": "Advanced RSS-first YouTube viewer",
   "scope": "/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#05030f",
   "theme_color": "#0a0718",

@@ -8,9 +8,10 @@ from jinja2 import Environment, FileSystemLoader
 from starlette.status import HTTP_200_OK
 from starlette.templating import Jinja2Templates, _TemplateResponse
 
-from .. import __version__
+from .. import DISPLAY_NAME, __version__
+from ..accounts import csrf_token_for, set_csrf_cookie
 from ..settings import current_config, static_folder, templates_folder
-from .utils import age_text
+from .utils import age_text, duration_text
 
 
 def clean_title(text: str) -> str:
@@ -39,7 +40,9 @@ jinja_env = Environment(loader=FileSystemLoader(templates_folder), autoescape=Tr
 jinja_env.filters["clean_title"] = clean_title
 jinja_env.filters["date_humanize"] = date_humanize
 jinja_env.filters["age_text"] = age_text
+jinja_env.filters["duration_text"] = duration_text
 jinja_env.globals["static_url"] = static_url
+jinja_env.globals["display_name"] = DISPLAY_NAME
 
 jinja = Jinja2Templates(env=jinja_env)
 
@@ -52,10 +55,16 @@ def link_prefix(request: Request) -> str:
     return f"{path}?" if path.startswith("/") and not path.startswith("//") else "/?"
 
 
+def _secure(request: Request) -> bool:
+    base = current_config.public_base_url or ""
+    return request.url.scheme == "https" or base.startswith("https://")
+
+
 def template_page(
     request: Request, template_name: str, *, status_code: int = HTTP_200_OK, **kwargs: Any
 ) -> _TemplateResponse:
-    return jinja.TemplateResponse(
+    csrf_token, set_cookie = csrf_token_for(request)
+    response = jinja.TemplateResponse(
         request,
         template_name,
         context={
@@ -63,7 +72,14 @@ def template_page(
             "link_prefix": link_prefix(request),
             "max_page_items": current_config.max_page_items,
             "version": __version__,
+            "csrf_token": csrf_token,
+            "user": getattr(request.state, "user", None),
+            "server_watched": getattr(request.state, "watched", None),
         }
         | {k: v for k, v in kwargs.items() if v is not None},
         status_code=status_code,
     )
+    # WHY: error pages have no forms; a CSRF cookie there is noise and the strict-address test forbids it.
+    if set_cookie and (status_code < 400 or status_code == 401):
+        set_csrf_cookie(response, csrf_token, secure=_secure(request))
+    return response

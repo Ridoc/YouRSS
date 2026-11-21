@@ -1,7 +1,7 @@
 {% from "partials/macros.jinja-html" import avatar, state_marker %}
 <aside id="yourss-sidebar" class="yourss-sidebar" aria-label="Navigation">
   <div class="yourss-sidebar-head">
-    <a class="yourss-brand" href="{{ home_path|default(request.url.path) }}" title="Reload this page"><img src="{{ static_url('icons/icon-192.png') }}" width="28" height="28" alt="" /><span>You<em>RSS</em></span></a>
+    <a class="yourss-brand" href="{{ home_path|default(request.url.path) }}" title="Reload this page"><img src="{{ static_url('icons/icon-192.png') }}" width="28" height="28" alt="" /><span>You<em>RSS</em>+</span></a>
     <button type="button" class="yourss-icon-btn yourss-rail-toggle" data-action="rail" title="Collapse / expand sidebar"><svg><use href="#i-chevron" /></svg></button>
   </div>
 

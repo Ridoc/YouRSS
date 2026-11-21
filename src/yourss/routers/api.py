@@ -1,11 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from httpx import HTTPError
+from pydantic import BaseModel, Field, StringConstraints
 from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_CONTENT
 
 from .. import __name__ as app_name
 from .. import __version__ as app_version
+from .. import accounts
+from .. import watched as watched_store
 from ..settings import current_config
 from ..youtube import (
     ScrapingError,
@@ -21,6 +24,54 @@ router = APIRouter(prefix="/api")
 @router.get("/version")
 async def version() -> dict[str, str]:
     return {"name": app_name, "version": app_version}
+
+
+class WatchedUpdate(BaseModel):
+    add: list[str] = Field(default_factory=list, max_length=500)
+    remove: list[str] = Field(default_factory=list, max_length=500)
+
+
+VideoId = Annotated[str, StringConstraints(max_length=32)]
+
+
+class WatchedImport(BaseModel):
+    # WHY: an unbounded map turns one authenticated POST into a million SQLite writes.
+    watched: dict[VideoId, int] = Field(max_length=3000)
+
+
+def _watched_csrf(request: Request, token: str | None) -> None:
+    accounts.validate_csrf(request, token)
+
+
+@router.get("/watched")
+async def get_watched(
+    request: Request, user: accounts.Account = Depends(accounts.require_user)
+) -> dict[str, int]:
+    return await watched_store.get_watched(request.app.state.db, user.id)
+
+
+@router.post("/watched")
+async def update_watched(
+    request: Request,
+    payload: WatchedUpdate,
+    user: accounts.Account = Depends(accounts.require_user),
+    csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+) -> dict[str, int]:
+    _watched_csrf(request, csrf_token)
+    return await watched_store.set_watched(
+        request.app.state.db, user.id, add=payload.add, remove=payload.remove
+    )
+
+
+@router.post("/watched/import")
+async def import_watched(
+    request: Request,
+    payload: WatchedImport,
+    user: accounts.Account = Depends(accounts.require_user),
+    csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+) -> dict[str, int]:
+    _watched_csrf(request, csrf_token)
+    return await watched_store.import_watched(request.app.state.db, user.id, payload.watched)
 
 
 async def _channel_name(api: YoutubeApi, text: str) -> str | None:

@@ -1,14 +1,15 @@
-# YouRSS
+# YouRSS+
 
 ## Philosophy
 
-YouRSS is an alternative front-end to YouTube built on the **RSS feeds** YouTube publishes for
-every channel and playlist. RSS is an open and stable way to share content: it lets people choose
-how, and with which application, they follow what they like. YouRSS is a small RSS client for the
-browser, nothing more.
+YouRSS+ is an advanced fork of [YouRSS](https://github.com/essembeh/YouRSS), built on the
+**RSS feeds** YouTube publishes for every channel and playlist. RSS is an open and stable way to
+share content: it lets people choose how, and with which application, they follow what they like.
+YouRSS+ is a small RSS client for the browser, nothing more.
 
-What it gives: the latest videos of the channels you chose, on one page. No account, no
-registration, no ads, no recommendations, no tracking.
+What it gives: the latest videos of the channels you chose, on one page. Optional accounts with
+email magic links, self-service pages and subscriptions, watched-state sync, no ads, no
+recommendations, no tracking.
 
 Principles, in order of importance when they conflict:
 
@@ -17,9 +18,11 @@ Principles, in order of importance when they conflict:
 2. **Pass through, never proxy.** The browser loads thumbnails, avatars and the player straight
    from YouTube, and every link (RSS feed, channel page) points to YouTube. The server never
    relays media.
-3. **Stateless server.** No database, no session. One cookie only: the signed login of a user
-   behind a password, checked without any server state (`docs/specs/login.md`). What belongs to a
-   visitor (theme, density, watched videos) lives in the browser, in `localStorage`.
+3. **Server state for accounts.** SQLite (WAL) stores accounts, pages, subscriptions, watched
+   state and one-time login tokens; email magic links are the only passwordless login. A signed
+   session cookie identifies the browser. Anonymous pages and `localStorage` settings still work.
+   Run one uvicorn worker; the database plus its `-wal`/`-shm` files are `0600`. Every setting has
+   one `YOURSS_*` environment value and one Helm value, with the same default.
 4. **Cache as little as possible.** No cache by default. One server cache, on disk, can be turned
    on: the feeds for a few minutes (and up to two days when YouTube fails) and the channel names
    and avatars for a week. Nothing else, and never media.
@@ -31,8 +34,7 @@ Principles, in order of importance when they conflict:
    shared as is. A visitor builds a page by adding and removing channels: its address is the
    subscription list, the home page explains it.
 
-Not goals: accounts, comments, searching videos, recommendations, downloads, relaying or storing
-media.
+Not goals: comments, searching videos, recommendations, downloads, relaying or storing media.
 
 ## Stack
 

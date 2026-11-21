@@ -1,0 +1,43 @@
+{% extends "pages/base.jinja-html" %}
+{% block content %}
+<section class="yourss-account" aria-labelledby="yourss-status-title">
+  <header class="yourss-account-head">
+    <div>
+      <p class="yourss-eyebrow"><a href="/admin/users">Users</a></p>
+      <h1 id="yourss-status-title">Warm-up status</h1>
+    </div>
+    <a class="yourss-btn" href="/account">Your account</a>
+  </header>
+
+  <section class="yourss-card" aria-labelledby="yourss-counts-title">
+    <h2 id="yourss-counts-title">Channels</h2>
+    {% if counts %}
+    <ul class="yourss-list">
+      {% for row in counts %}
+      <li><strong>{{ row.state }}</strong>: {{ row.count }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="yourss-empty">No warm-up has run yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="yourss-card" aria-labelledby="yourss-recent-title">
+    <h2 id="yourss-recent-title">Recent checks</h2>
+    {% if recent %}
+    <div class="yourss-table-wrap">
+      <table class="yourss-table">
+        <thead><tr><th>Channel</th><th>State</th><th>Last OK</th><th>Checked</th><th>Error</th></tr></thead>
+        <tbody>
+        {% for row in recent %}
+          <tr><td>{{ row.channel }}</td><td>{{ row.state }}</td><td>{{ row.last_ok_at or "—" }}</td><td>{{ row.checked_at }}</td><td>{{ row.last_error or "" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="yourss-empty">Nothing checked yet.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

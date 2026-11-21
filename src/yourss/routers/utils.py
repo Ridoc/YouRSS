@@ -5,6 +5,8 @@ from urllib.parse import quote, urlencode
 from pydantic import BaseModel
 
 from ..async_utils import Kind, SubscriptionStatus
+from ..db import Database
+from ..settings import current_config
 from ..youtube import ChannelDescription, Continuation, Feed, VideoDescription
 from ..youtube.cache import known_channel
 
@@ -35,6 +37,15 @@ def page_entries(statuses: list[SubscriptionStatus]) -> list[SubscriptionStatus]
 def canonical_names(statuses: list[SubscriptionStatus]) -> list[str]:
     """Subscriptions of a user page for the address of its copy: the id of each handle that was resolved."""
     return list(dict.fromkeys(status.id for status in statuses))
+
+
+def duration_text(seconds: int | None) -> str:
+    """A video length as "4:05" or "1:02:03"; empty when unknown."""
+    if seconds is None or seconds < 0:
+        return ""
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
 def age_text(age: timedelta) -> str:
@@ -146,6 +157,32 @@ def page_context(statuses: list[SubscriptionStatus]) -> PageContext:
         "videos": get_videos_from_feeds(feeds, channels),
         "summary": fetch_summary(statuses),
     }
+
+
+async def enrich_durations(db: Database, videos: list[VideoDescription]) -> list[VideoDescription]:
+    """Attach the cached durations when enabled; unknown videos keep their existing value."""
+    if not current_config.video_durations or not videos:
+        return videos
+    ids = [video.video_id for video in videos]
+    placeholders = ",".join("?" for _ in ids)
+    rows = await db.fetchall(
+        f"SELECT video_id, seconds FROM video_durations WHERE video_id IN ({placeholders})",  # noqa: S608
+        tuple(ids),
+    )
+    durations = {str(row["video_id"]): int(row["seconds"]) for row in rows}
+    return [
+        video.model_copy(update={"duration_seconds": durations.get(video.video_id, video.duration_seconds)})
+        for video in videos
+    ]
+
+
+async def page_context_with_durations(
+    db: Database, statuses: list[SubscriptionStatus]
+) -> PageContext:
+    """Page context plus the cached durations, only when the feature is enabled."""
+    context = page_context(statuses)
+    context["videos"] = await enrich_durations(db, context["videos"])
+    return context
 
 
 def folder_link_prefix(user_name: str, page_name: str) -> str:

@@ -391,3 +391,20 @@ SELF_REVIEW:
     - "one uvicorn worker; SQLite writes serialize"
     - "when Turnstile is configured, verification is fail-closed; unconfigured = rate limits only"
   scope_check: "issues #4-#17 + accounts + migration + deployment; no local likes, no PUID entrypoint, no realtime watched sync"
+
+IMPLEMENTATION_STATUS:  # 2026-11-21
+  version: "0.83.6 fork; package `yourss`; display YouRSS+"
+  done: ["BATCH_1 fork/naming/deps", "BATCH_2 SQLite/migrations/settings/secret", "BATCH_3 magic-link/SMTP/Turnstile/session/CSRF/limits", "BATCH_4 import/CRUD/admin/permissions", "BATCH_5 watched sync", "BATCH_6 private/noindex/Argon2", "BATCH_7 healthz/robots/404/Docker/backup/warm-up/durations"]
+  gates: "346 passed, 4 skipped; ruff clean; mypy clean (75 files)"
+  db: "/data/db/yourss.db authoritative; users.yaml one-time import only; DB/WAL/SHM 0600"
+  accounts: "email magic link; session cookie yourss-session; CSRF bound to account; username editable; legacy password until first claim"
+  runtime: "one uvicorn worker; Recreate; liveness /api/version; readiness /healthz"
+  docker: "UID/GID 999; /data/{db,cache,backup}; scripts/backup-db.sh; HEALTHCHECK /healthz"
+  remaining: ["BATCH_8 public rollout", "SMTP/Turnstile secrets in deployment env", "30-day 301 then old stack removal"]
+  notes:
+    - "YOURSS_SECRET_KEY empty -> generated once in SQLite; set >=32 chars in production"
+    - "YOURSS_PUBLIC_BASE_URL required when SMTP is set"
+    - "Turnstile site/secret must be set together or startup fails"
+    - "first verified user becomes admin only when registration is on, no ADMIN_EMAIL, zero users; logged loudly"
+    - "watched localStorage import is one-shot; server wins after import"
+    - "video durations off by default; warm-up scrapes each channel videos tab once per TTL"

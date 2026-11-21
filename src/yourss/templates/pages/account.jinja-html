@@ -1,0 +1,81 @@
+{% extends "pages/base.jinja-html" %}
+{% block content %}
+<section class="yourss-account" aria-labelledby="yourss-account-title">
+  <header class="yourss-account-head">
+    <div>
+      <p class="yourss-eyebrow">Your account</p>
+      <h1 id="yourss-account-title">{{ account.username }}</h1>
+      <p class="yourss-muted">{{ account.email or "No email address yet" }}</p>
+    </div>
+    <a class="yourss-btn" href="/">Back to videos</a>
+  </header>
+
+  {% if account.role == "admin" %}
+  <p><a class="yourss-btn" href="/admin/users">Manage users</a> <a class="yourss-btn" href="/admin/status">Warm-up status</a></p>
+  {% endif %}
+
+  <section class="yourss-card" aria-labelledby="yourss-profile-title">
+    <h2 id="yourss-profile-title">Profile</h2>
+    <form method="post" action="/account">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label for="yourss-username">Username</label>
+      <input id="yourss-username" name="username" value="{{ account.username }}" required
+             pattern="[a-z0-9][a-z0-9_-]{2,31}" autocomplete="username" />
+      <label for="yourss-display-name">Display name</label>
+      <input id="yourss-display-name" name="display_name" value="{{ account.display_name }}" maxlength="80" />
+      <button class="yourss-btn" type="submit">Save profile</button>
+    </form>
+  </section>
+
+  <section class="yourss-card" aria-labelledby="yourss-pages-title">
+    <div class="yourss-card-head">
+      <h2 id="yourss-pages-title">Your pages</h2>
+      <span class="yourss-muted">{{ pages|length }} / {{ max_pages }}</span>
+    </div>
+    {% if pages %}
+    <ul class="yourss-list">
+      {% for page in pages %}
+      <li>
+        <a href="/account/pages/{{ page.name }}">{{ page.name }}</a>
+        {% if page.publish %}<span class="yourss-muted">also /p/{{ page.publish }}</span>{% endif %}
+        {% if not page.warmup %}<span class="yourss-muted">refreshed on visit</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="yourss-empty">No pages yet. Create one to collect channels.</p>
+    {% endif %}
+    <form method="post" action="/account/pages" class="yourss-inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label for="yourss-new-page">New page</label>
+      <input id="yourss-new-page" name="name" required placeholder="Homepage" />
+      <label for="yourss-new-publish">Public name (optional)</label>
+      <input id="yourss-new-publish" name="publish" placeholder="home" />
+      <label class="yourss-check"><input type="checkbox" name="warmup" checked /> Refresh in background</label>
+      <button class="yourss-btn" type="submit">Create page</button>
+    </form>
+  </section>
+
+  <section class="yourss-card" aria-labelledby="yourss-watched-title">
+    <h2 id="yourss-watched-title">Watched videos</h2>
+    <p>{{ watched_count }} videos are marked watched on this account.</p>
+    <p class="yourss-muted">Watched state syncs when you are signed in. Anonymous viewing stays in this browser.</p>
+    <button type="button" class="yourss-btn" data-action="import-watched">Import this browser's watched list</button>
+  </section>
+
+  <section class="yourss-card" aria-labelledby="yourss-security-title">
+    <h2 id="yourss-security-title">Security</h2>
+    <form method="post" action="/account/logout-all">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button class="yourss-btn" type="submit">Sign out everywhere</button>
+    </form>
+    <p><a href="/account/export">Download my data</a></p>
+    <form method="post" action="/account/delete" onsubmit="return confirm('Delete this account and all its pages?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label for="yourss-delete-confirm">Type DELETE to confirm</label>
+      <input id="yourss-delete-confirm" name="confirm" required />
+      <button class="yourss-btn yourss-reset-btn" type="submit">Delete account</button>
+    </form>
+  </section>
+</section>
+{% endblock %}

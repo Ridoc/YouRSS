@@ -4,7 +4,7 @@ replicaCount: 1
 
 yourss:
   image:
-    repository: ghcr.io/essembeh/yourss
+    repository: ghcr.io/ridoc/yourss
     # tag: main
     pullPolicy: IfNotPresent
   timezone: Europe/Paris
@@ -28,7 +28,7 @@ yourss:
   cacheEnabled: false
   # YOURSS_CACHE_FOLDER: where the cache lives; empty means a temporary folder under /tmp (an
   # emptyDir), lost with the pod. The pod does not start if it cannot write there
-  cacheFolder: ""
+  cacheFolder: /data/cache
   # YOURSS_CACHE_RSS_TTL: how long a cached feed is served without asking Youtube (ISO-8601
   # duration or seconds)
   cacheRssTtl: PT30M
@@ -44,6 +44,48 @@ yourss:
   # YOURSS_LOGIN_TTL: how long a browser stays logged in to a user behind a password (ISO-8601
   # duration or seconds)
   loginTtl: P90D
+  # --- YouRSS+ accounts and SQLite
+  # YOURSS_DB_PATH: the SQLite database; keep it on a ReadWriteOnce volume
+  dbPath: /data/db/yourss.db
+  # YOURSS_SECRET_KEY: empty lets the app generate and persist one in SQLite
+  secretKey: ""
+  # YOURSS_PUBLIC_BASE_URL: absolute HTTPS base used in magic links
+  publicBaseUrl: ""
+  # YOURSS_REGISTRATION_ENABLED: let unknown emails create an account
+  registrationEnabled: false
+  # YOURSS_SESSION_TTL: browser session lifetime for passwordless accounts
+  sessionTtl: P30D
+  # YOURSS_PRIVATE: gate every HTML/htmx read behind a session
+  private: false
+  # YOURSS_NOINDEX: send noindex headers and Disallow robots.txt
+  noindex: false
+  # YOURSS_ADMIN_EMAIL / YOURSS_ADMIN_USERNAME: operator bootstrap account
+  adminEmail: ""
+  adminUsername: ""
+  # YOURSS_MAX_PAGES_PER_USER / YOURSS_MAX_PAGE_SUBSCRIPTIONS
+  maxPagesPerUser: 50
+  maxPageSubscriptions: 200
+  # YOURSS_FORWARDED_ALLOW_IPS: only these direct peers may supply forwarded headers
+  forwardedAllowIps: 127.0.0.1
+  # YOURSS_USERS_FILE: one-time legacy users.yaml import (empty disables)
+  usersFile: ""
+  # YOURSS_IMPORT_EXPECT_PAGES / YOURSS_IMPORT_EXPECT_SUBS: fail-closed import floors
+  importExpectPages: 0
+  importExpectSubs: 0
+  # YOURSS_VIDEO_DURATIONS / YOURSS_DURATION_TTL
+  videoDurations: false
+  durationTtl: PT6H
+  smtp:
+    host: ""
+    port: 587
+    username: ""
+    password: ""
+    starttls: true
+    ssl: false
+    from: ""
+  turnstile:
+    siteKey: ""
+    secretKey: ""
   # YOURSS_USERS_FILE: the users and their pages, stored in a Secret since users may hold passwords
   users:
     []
@@ -77,6 +119,18 @@ yourss:
   # - name: HTTPS_PROXY
   #   value: http://proxy:3128
 
+persistence:
+  db:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    existingClaim: ""
+  backup:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+    existingClaim: ""
+
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
@@ -98,9 +152,9 @@ podLabels: {}
 # The image runs as an unprivileged user and only writes to /tmp (an emptyDir)
 podSecurityContext:
   runAsNonRoot: true
-  runAsUser: 10001
-  runAsGroup: 10001
-  fsGroup: 10001
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
   seccompProfile:
     type: RuntimeDefault
 

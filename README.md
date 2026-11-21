@@ -1,10 +1,12 @@
-![Github](https://img.shields.io/github/tag/essembeh/yourss.svg)
+![Github](https://img.shields.io/github/tag/Ridoc/YouRSS.svg)
 
-# YouRSS
+# YouRSS+
 
-> A minimal Youtube RSS feed viewer for your browser: the latest videos of the channels you chose, on one page. No account, no registration, no ads, no recommendations, no tracking.
+> An advanced YouTube RSS feed viewer: the latest videos of the channels you chose, on one page. YouRSS+ keeps the RSS-first, pass-through design while account, self-service subscription and watched-sync work lands in this fork; the fixes are tracked in this repository's issues.
 
-![YouRSS on desktop and on mobile: the same channel, opened inside its folder (neon theme)](./images/yourss_hero.png)
+**YouRSS+** is a fork of [essembeh/YouRSS](https://github.com/essembeh/YouRSS), which remains the upstream project. The Python package and import name stay `yourss` so existing deployments and data files keep working.
+
+![YouRSS+ on desktop and on mobile: the same channel, opened inside its folder (neon theme)](./images/yourss_hero.png)
 
 <details>
 <summary>More screenshots</summary>
@@ -14,8 +16,8 @@
 | ![Player](./images/yourss_player.png) | ![Channel view](./images/yourss_channel.png) |
 
 <p align="center">
-  <img src="./images/yourss_mobile_menu.png" alt="YouRSS on mobile: the folders and their channels" width="30%">
-  <img src="./images/yourss_mobile_settings.png" alt="YouRSS on mobile: the settings" width="30%">
+  <img src="./images/yourss_mobile_menu.png" alt="YouRSS+ on mobile: the folders and their channels" width="30%">
+  <img src="./images/yourss_mobile_settings.png" alt="YouRSS+ on mobile: the settings" width="30%">
 </p>
 
 </details>
@@ -24,7 +26,7 @@
 
 **https://yourss.onrender.com**
 
-> This demo is a public instance, shared by everyone and hosted on a free plan: it sleeps when nobody uses it, so the first page may take about a minute to show up. It comes without any guarantee and can be limited or stopped at any time: to follow your channels every day, [install your own](#-install).
+> This is the upstream project's demo. It is a public instance, shared by everyone and hosted on a free plan: it sleeps when nobody uses it, so the first page may take about a minute to show up. It comes without any guarantee and can be limited or stopped at any time: to follow your channels every day, [install your own](#-install).
 
 ## ✨ Features
 
@@ -91,11 +93,12 @@ Click a channel in the sidebar to browse it without leaving your page: its recen
 
 Youtube publishes an RSS feed for every channel. RSS is an open and stable way to share content, it has been for decades: it lets *you* choose how, and with which application, you follow what you like.
 
-*YouRSS* is a small RSS client for the browser, nothing more:
+*YouRSS+* is a small RSS client for the browser, nothing more:
 
-- **no account**: the channels you follow are in the *URL*, a page can be bookmarked and shared as is
+- **anonymous by default**: a page made of channels in the *URL* can be bookmarked and shared as is; no account is required
+- **optional accounts (in progress)**: email magic-link sign-in is being added to keep subscriptions and watched state across devices
 - **nothing but the content you chose**: no ads, no suggested videos
-- **nothing kept on the server**: no database, no session, no cookie; your settings and the videos you watched stay in your browser
+- **server state only for accounts (in progress)**: anonymous settings and watched videos stay in your browser; account data will live in SQLite when the account features land
 - **straight from Youtube**: thumbnails, avatars and the player are loaded by your browser, the server never relays them
 
 # 📦 Install
@@ -105,7 +108,7 @@ Youtube publishes an RSS feed for every channel. RSS is an open and stable way t
 First, you need [uv](https://docs.astral.sh/uv/), see [installation documentation](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```sh
-$ git clone https://github.com/essembeh/YouRSS
+$ git clone https://github.com/Ridoc/YouRSS
 $ cd YouRSS
 $ uv sync
 $ uv run --env-file .env -- fastapi dev src/yourss/main.py
@@ -121,8 +124,19 @@ Then visit [http://localhost:8000/](http://localhost:8000/)
 Using Docker you can run the latest image build on the latest commit:
 
 ```sh
-$ docker run -d --name yourss -p 8000:8000 ghcr.io/essembeh/yourss:main
+$ mkdir -p data/db data/cache data/backup
+$ docker run -d --name yourss \
+    -u 999:999 \
+    -e YOURSS_DB_PATH=/data/db/yourss.db \
+    -e YOURSS_CACHE_FOLDER=/data/cache \
+    -v "$PWD/data/db:/data/db" \
+    -v "$PWD/data/cache:/data/cache" \
+    -v "$PWD/data/backup:/data/backup" \
+    -p 127.0.0.1:8000:8000 \
+    ghcr.io/ridoc/yourss:main
 ```
+
+The image runs as UID/GID `999`, keeps SQLite in `/data/db`, and exposes `/healthz`. `scripts/backup-db.sh` writes a consistent backup into `/data/backup`. A compose example is in [`docker-compose.example.yml`](./docker-compose.example.yml).
 
 Then visit [http://localhost:8000/](http://localhost:8000/)
 
@@ -130,14 +144,12 @@ Then visit [http://localhost:8000/](http://localhost:8000/)
 
 You need an access to a Kubernetes cluster and `helm` tool installed.
 ```sh
-# add the helm repository
-$ helm repo add yourss https://essembeh.github.io/YouRSS/ 
-# get the values.yaml
-$ helm show values yourss/yourss > myvalues.yaml
+# from a checkout of this fork
+$ helm show values ./charts/yourss > myvalues.yaml
 # edit the values for your needs
 $ vim myvalues.yaml
 # install release
-$ helm install my-yourss yourss/yourss -f myvalues.yaml
+$ helm install my-yourss ./charts/yourss -f myvalues.yaml
 ```
 
 > Note: you need to add an *Ingress* to access the *Service* from outside your cluster.
@@ -152,7 +164,7 @@ Then visit [http://localhost:8000/](http://localhost:8000/)
 
 # ⚙️ Configuration
 
-*YouRSS* can be configured using environment variables.
+*YouRSS+* can be configured using environment variables.
 
 | VARIABLE | DEFAULT | HELM VALUE | DESCRIPTION |
 |----------|---------|------------|-------------|
@@ -166,30 +178,62 @@ Then visit [http://localhost:8000/](http://localhost:8000/)
 | YOURSS_CACHE_RSS_TTL | `PT30M` | `yourss.cacheRssTtl` | How long a cached feed is served without asking Youtube (ISO-8601 duration, e.g. `PT30M`, or a number of seconds) |
 | YOURSS_CACHE_RSS_FALLBACK_TTL | `PT48H` | `yourss.cacheRssFallbackTtl` | How long a cached feed may replace a failed fetch, at least `YOURSS_CACHE_RSS_TTL`. An older feed is deleted and the error is propagated |
 | YOURSS_CACHE_METADATA_TTL | `P7D` | `yourss.cacheMetadataTtl` | How long the name and avatar of a channel are served without scraping its page on Youtube (ISO-8601 duration or seconds). When the scrape fails, the cached ones are served whatever their age. Browsers keep the redirect to an avatar as long |
-| YOURSS_LOGIN_TTL | `P90D` | `yourss.loginTtl` | How long a browser stays logged in to a user behind a password once its form is filled (ISO-8601 duration or seconds). Behind a TLS proxy, the cookie is `Secure` only when the proxy sends `X-Forwarded-Proto` |
-| YOURSS_WARMUP_ENABLED | `False` | `yourss.warmupEnabled` | With the cache on, refresh the feeds of every configured page (but those with `warmup: false`) in the background: a first round at startup, then one every `YOURSS_CACHE_RSS_TTL` minus a minute, so that a visitor always finds fresh feeds, Youtube's bad hours included (the fallback cache). It asks Youtube whether anyone visits or not. Each process refreshes its own cache: run one worker per cache |
+| YOURSS_LOGIN_TTL | `P90D` | `yourss.loginTtl` | How long a browser stays logged in to an imported legacy password user (ISO-8601 duration or seconds) |
+| YOURSS_WARMUP_ENABLED | `False` | `yourss.warmupEnabled` | With the cache on, refresh the feeds of every DB page (but those with `warmup: false`) in the background: a first round at startup, then one every `YOURSS_CACHE_RSS_TTL` minus a minute. Each process refreshes its own cache: run one worker per cache |
+| YOURSS_DB_PATH | `data/yourss.db` | `yourss.dbPath` | SQLite database; WAL mode, one writer. The Docker image uses `/data/db/yourss.db` |
+| YOURSS_SECRET_KEY | generated | `yourss.secretKey` | Signing key for sessions and CSRF. Empty generates one and persists it in SQLite; set at least 32 characters in production |
+| YOURSS_PUBLIC_BASE_URL |  | `yourss.publicBaseUrl` | Absolute HTTPS base for magic links, e.g. `https://yourss.example`. Required when `YOURSS_SMTP_HOST` is set; never derived from the request Host |
+| YOURSS_REGISTRATION_ENABLED | `False` | `yourss.registrationEnabled` | Let an unknown email create an account on its first verified magic link. Keep `YOURSS_ADMIN_EMAIL` set on a public instance |
+| YOURSS_SESSION_TTL | `P30D` | `yourss.sessionTtl` | Passwordless browser session lifetime (ISO-8601 or seconds) |
+| YOURSS_PRIVATE | `False` | `yourss.private` | Gate every HTML/htmx read behind a session, except login, `/healthz`, `/robots.txt` and static assets. API/htmx reads get `401`; HTML gets `/login` |
+| YOURSS_NOINDEX | `False` | `yourss.noindex` | Send `X-Robots-Tag: noindex` and `Disallow: /` on `/robots.txt` (also implied by `YOURSS_PRIVATE`) |
+| YOURSS_ADMIN_EMAIL |  | `yourss.adminEmail` | Operator admin email; adopted at startup, or the first verified user is promoted when registration is on and this is unset |
+| YOURSS_ADMIN_USERNAME |  | `yourss.adminUsername` | Username to adopt for `YOURSS_ADMIN_EMAIL` when importing a legacy users file |
+| YOURSS_MAX_PAGES_PER_USER | `50` | `yourss.maxPagesPerUser` | Per-account page cap |
+| YOURSS_MAX_PAGE_SUBSCRIPTIONS | `200` | `yourss.maxPageSubscriptions` | Per-page subscription cap after import |
+| YOURSS_FORWARDED_ALLOW_IPS | `127.0.0.1` | `yourss.forwardedAllowIps` | Only these direct peers may supply `CF-Connecting-IP` / `X-Forwarded-For`. Set the proxy bridge CIDR, never `*` |
+| YOURSS_USERS_FILE |  | `yourss.usersFile` | One-time legacy users.yaml import. Unset skips, leaves the import marker unset, and imports later when set |
+| YOURSS_IMPORT_EXPECT_PAGES | `0` | `yourss.importExpectPages` | Fail-closed import floor: the file must have at least this many pages |
+| YOURSS_IMPORT_EXPECT_SUBS | `0` | `yourss.importExpectSubs` | Fail-closed import floor: at least this many subscriptions |
+| YOURSS_VIDEO_DURATIONS | `False` | `yourss.videoDurations` | Scrape each channel's videos tab during warm-up and cache durations for overview badges |
+| YOURSS_DURATION_TTL | `PT6H` | `yourss.durationTtl` | Duration cache lifetime (ISO-8601 or seconds) |
+| YOURSS_SMTP_HOST |  | `yourss.smtp.host` | SMTP host for magic links. Unset logs a development link instead of sending mail; never run a public instance this way |
+| YOURSS_SMTP_PORT | `587` | `yourss.smtp.port` | SMTP port |
+| YOURSS_SMTP_USER |  | `yourss.smtp.username` | SMTP username |
+| YOURSS_SMTP_PASSWORD |  | `yourss.smtp.password` | SMTP password (Secret) |
+| YOURSS_SMTP_STARTTLS | `True` | `yourss.smtp.starttls` | STARTTLS |
+| YOURSS_SMTP_SSL | `False` | `yourss.smtp.ssl` | Implicit TLS |
+| YOURSS_SMTP_FROM |  | `yourss.smtp.from` | From address; defaults to the SMTP user |
+| YOURSS_TURNSTILE_SITE_KEY |  | `yourss.turnstile.siteKey` | Cloudflare Turnstile site key; must be set with the secret key |
+| YOURSS_TURNSTILE_SECRET_KEY |  | `yourss.turnstile.secretKey` | Cloudflare Turnstile secret key (Secret); app-level IP/email limits remain |
 
 > Note: in the users file, a channel is a *channel_id* (24 characters, like `UCa_Dlwrwv3ktrhCy91HpVRw`) or a handle (like `@JonnyGiger`), and a playlist is its id (`PL…`). The address of a page only holds ids.
 
-See [`.env`](./.env) for example.
+See [`.env.example`](./.env.example) for the full list.
 
 ## 👤 Configure users and pages
 
 A *user* holds *pages*, named lists of channels and playlists, which become its folders:
 `http://my-yourss-instance/u/alice/fun`. The sidebar lists the folders, one open at a time, each with its own Home;
-`http://my-yourss-instance/u/alice` opens the last folder visited in this browser. A user can be protected by a *password* (plain text or argon2 hash): its pages answer a login
-form, which keeps the browser logged in for `YOURSS_LOGIN_TTL` with a signed cookie (it works in a web app added to the
-iOS home screen, where HTTP Basic does not), and HTTP Basic credentials (`curl -u`) are still accepted. Changing the
-password logs out every browser.
+`http://my-yourss-instance/u/alice` opens the last folder visited in this browser. Accounts are passwordless: `/login`
+emails a one-time link (SMTP), and a verified session owns `/account`, where the user edits the username, pages,
+subscriptions and watched state. An imported `users.yaml` account keeps its legacy password until its first
+magic-link login claims it; an admin can assign an email to an imported account. A password-protected page still
+answers the legacy login form and HTTP Basic, with the signed cookie lasting `YOURSS_LOGIN_TTL`. Changing a password
+logs out every browser. Watched videos sync server-side for signed-in users and stay in localStorage for anonymous
+visitors.
 
 A page can be *published* under a name, at its own address, easier to type and to remember than an address full
 of ids: `http://my-yourss-instance/p/fun` instead of
 `http://my-yourss-instance/UCVooVnzQxPSTXTMzSi1s6uw,UCQsmxaMzYr76Yd1iqMEq8TA`. A public page is readable by anyone,
 even when its user is behind a password; published names are unique across the instance.
 
-To configure them:
-- set `YOURSS_USERS_FILE` and point to a *YAML* file where you'll declare your *users* and their *pages*
-- see [sample `users.yaml`](./samples/users.yaml) for example
+To migrate an existing instance:
+- back up the live `users.yaml` and set `YOURSS_USERS_FILE` to a **read-only** copy
+- set `YOURSS_IMPORT_EXPECT_PAGES` / `YOURSS_IMPORT_EXPECT_SUBS` to the live counts; startup fails closed on a short file
+- the import runs once, then sets `users_imported_at`; later edits to the file do not change the database
+- back up `/data/db/yourss.db` with `scripts/backup-db.sh`; restore requires the app stopped
+- see [sample `users.yaml`](./samples/users.yaml) for the format
 
 ```yaml
 users:
@@ -230,7 +274,7 @@ The administrator of an instance can turn this off, for example to keep the inst
 - click a channel in the sidebar of a page to browse its homepage (recent videos, videos, shorts, streams)
 - if you defined some *pages*, for example `fun`, the page can be accessed at `http://yourss.local/p/fun`, and a folder of a *user* at `http://yourss.local/u/alice/fun`
 
-> Note: replace `yourss.local` with the URL of your *YouRSS* instance.
+> Note: replace `yourss.local` with the URL of your *YouRSS+* instance.
 
 # 🔗 External links
 

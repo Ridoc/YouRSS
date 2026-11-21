@@ -12,24 +12,28 @@ from starlette.status import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
     HTTP_422_UNPROCESSABLE_CONTENT,
+    HTTP_429_TOO_MANY_REQUESTS,
 )
 
+from .. import accounts, ratelimit
 from ..async_utils import async_fetch
-from ..schema import Page, User
 from ..security import (
     LOGIN_COOKIE,
+    DbPage,
+    DbUser,
     UnknownUser,
     find_page,
     find_user,
     get_auth_user,
+    get_secret_key,
     login_token,
-    verify_password,
+    verify_password_async,
 )
 from ..settings import current_config, static_folder
 from ..youtube import YoutubeApi
 from .jinja import template_page
 from .schema import SUBSCRIPTIONS, SUBSCRIPTIONS_PATTERN, TOO_MANY, ChannelId
-from .utils import canonical_names, folder_link_prefix, page_context
+from .utils import canonical_names, folder_link_prefix, page_context_with_durations
 
 router = APIRouter()
 
@@ -96,7 +100,7 @@ async def apple_touch_icon() -> FileResponse:
 
 
 @router.get("/p/{page}", response_class=HTMLResponse)
-async def page_of_the_file(request: Request, found: Page | None = Depends(find_page)) -> HTMLResponse:
+async def page_of_the_file(request: Request, found: DbPage | None = Depends(find_page)) -> HTMLResponse:
     """A page of the users file, flat (docs/specs/pages-users.md §7); unpublished or unknown, it does not exist."""
     if found is None:
         return template_page(
@@ -113,17 +117,17 @@ async def page_of_the_file(request: Request, found: Page | None = Depends(find_p
         request,
         "pages/view.jinja-html",
         title=f"/p/{found.publish}",
-        **page_context(statuses),
+        **(await page_context_with_durations(request.app.state.db, statuses)),
         # A page is read-only: it only offers its multi channel copy
         copy_url="/" + ",".join(names) if current_config.custom_pages_enabled else None,
     )
 
 
-def login_page(request: Request, user: User, *, error: bool = False) -> HTMLResponse:
+def login_page(request: Request, user: DbUser, *, error: bool = False) -> HTMLResponse:
     """The login form of a protected user, with a 401 and no Basic challenge (docs/specs/login.md §1)."""
     return template_page(
         request,
-        "pages/login.jinja-html",
+        "pages/user-login.jinja-html",
         status_code=HTTP_401_UNAUTHORIZED,
         title=f"/u/{user.name}",
         home_path="/",
@@ -136,13 +140,19 @@ def login_page(request: Request, user: User, *, error: bool = False) -> HTMLResp
 @router.post("/u/{username}/{page}", response_model=None)
 async def user_login(
     request: Request,
-    user: User | None = Depends(find_user),
+    user: DbUser | None = Depends(find_user),
+    secret: str = Depends(get_secret_key),
     password: Annotated[str, Form()] = "",
     logout: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
 ) -> Response:
     """The login form posts to the page it protects, the answer goes back to it (docs/specs/login.md §2, §7)."""
-    if user is None:
+    if user is None or user.disabled_at is not None:
         raise UnknownUser()
+    # WHY: a junk POST without a CSRF token must not drain the shared login limiter for a NAT.
+    accounts.validate_csrf(request, csrf_token)
+    if not ratelimit.login_ip_limiter.allow(accounts.client_ip(request) or ""):
+        raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Too many login attempts")
     if logout:
         out = RedirectResponse(f"/u/{user.name}", status_code=HTTP_303_SEE_OTHER)
         out.delete_cookie(LOGIN_COOKIE, path=f"/u/{user.name}", httponly=True, samesite="lax")
@@ -150,16 +160,17 @@ async def user_login(
     back = request.url.path + (f"?{request.url.query}" if request.url.query else "")
     if user.password is None:
         return RedirectResponse(back, status_code=HTTP_303_SEE_OTHER)
-    if not verify_password(user, password):
+    if not await verify_password_async(user, password):
         logger.warning("Wrong login password for {} from {}", user.name, request.client and request.client.host)
         return login_page(request, user, error=True)
     out = RedirectResponse(back, status_code=HTTP_303_SEE_OTHER)
     out.set_cookie(
         LOGIN_COOKIE,
-        login_token(user),
+        login_token(user, secret),
         max_age=int(current_config.login_ttl.total_seconds()),
         path=f"/u/{user.name}",
-        secure=request.url.scheme == "https",
+        secure=request.url.scheme == "https"
+        or (current_config.public_base_url or "").startswith("https://"),
         httponly=True,
         samesite="lax",
     )
@@ -167,7 +178,7 @@ async def user_login(
 
 
 @router.get("/u/{username}", response_class=HTMLResponse)
-async def user_tree(request: Request, user: User = Depends(get_auth_user)) -> HTMLResponse:
+async def user_tree(request: Request, user: DbUser = Depends(get_auth_user)) -> HTMLResponse:
     """The folders of a user, none open: the script opens the last one shown, else the first (§6)."""
     return template_page(
         request,
@@ -183,7 +194,7 @@ async def user_tree(request: Request, user: User = Depends(get_auth_user)) -> HT
 async def user_folder(
     request: Request,
     page: str,
-    user: User = Depends(get_auth_user),
+    user: DbUser = Depends(get_auth_user),
     hx_request: Annotated[str | None, Header()] = None,
 ) -> HTMLResponse:
     """A folder of a user: the page, or with the header htmx sends its fragment (§3), public or not."""
@@ -209,7 +220,7 @@ async def user_folder(
         folders=user.pages,
         protected=user.password is not None,
         folder=folder,
-        **page_context(statuses),
+        **(await page_context_with_durations(request.app.state.db, statuses)),
     )
 
 
@@ -256,7 +267,7 @@ async def page(
             home_link=True,
         )
     statuses = await async_fetch(ids, api=YoutubeApi())
-    context = page_context(statuses)
+    context = await page_context_with_durations(request.app.state.db, statuses)
     return template_page(
         request,
         "pages/view.jinja-html",

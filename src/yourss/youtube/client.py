@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from http.cookiejar import Cookie, CookieJar, DefaultCookiePolicy
 from typing import Annotated, Any
 from urllib.request import Request
@@ -106,20 +106,30 @@ class YoutubeApi(RapidApi):
         folder = cache_folder()
         if folder is None:
             return await fetch(key)
-        cached = None if refresh else read_cached_feed(folder, key, current_config.cache_rss_ttl)
-        if cached is not None:
-            return cached
+        try:
+            cached = None if refresh else read_cached_feed(folder, key, current_config.cache_rss_ttl)
+            if cached is not None:
+                return cached
+        except ValueError as error:
+            logger.warning("Ignoring an invalid cache key {!r}: {}", key, error)
         try:
             feed = await fetch(key)
         except Exception as error:
             # Any failure (Youtube's daily transient 404, 5xx, network) falls back on the cache
-            stale = read_cached_feed(folder, key, current_config.cache_rss_fallback_ttl)
+            try:
+                stale = read_cached_feed(folder, key, current_config.cache_rss_fallback_ttl)
+            except ValueError:
+                stale = None
             if stale is None:
-                drop_cached_feed(folder, key)
+                with suppress(ValueError):
+                    drop_cached_feed(folder, key)
                 raise
             logger.warning("Serving the cached RSS of {} after a fetch error: {}", key, error)
             return stale
-        write_cached_feed(folder, key, feed._response.content)
+        try:
+            write_cached_feed(folder, key, feed._response.content)
+        except ValueError as error:
+            logger.warning("Not caching an invalid key {!r}: {}", key, error)
         return feed
 
     async def get_channel_rss(self, channel_id: str, *, refresh: bool = False) -> Feed:

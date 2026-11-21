@@ -120,4 +120,10 @@ def write_cached_channel(folder: Path, name: str, channel: ChannelDescription) -
 def known_channel(name: str) -> ChannelDescription | None:
     """The cached description of a channel whatever its age, without asking Youtube; None without cache."""
     folder = cache_folder()
-    return read_cached_channel(folder, name, None) if folder is not None else None
+    if folder is None:
+        return None
+    try:
+        return read_cached_channel(folder, name, None)
+    except ValueError as error:
+        logger.warning("Ignoring an invalid cache key {!r}: {}", name, error)
+        return None
