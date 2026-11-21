@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 # WHY: AppSettings is built at import time; the DB path must be set before yourss.main is imported.
 _DB_ROOT = Path(mkdtemp(prefix="yourss-test-db-"))
 os.environ["YOURSS_DB_PATH"] = str(_DB_ROOT / "yourss.db")
+# CI has no local .env: make the legacy fixture users file explicit for the upstream web/warm-up tests.
+os.environ.setdefault("YOURSS_USERS_FILE", str(Path(__file__).resolve().parents[1] / "samples" / "users.yaml"))
 
 from yourss.main import app  # noqa: E402
 from yourss.settings import current_config  # noqa: E402
