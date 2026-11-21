@@ -17,7 +17,7 @@ Each value under `yourss` maps to one `YOURSS_*` environment variable.
 | Value | Default | Variable |
 | --- | --- | --- |
 | `yourss.image.repository` | `ghcr.io/ridoc/yourss` | |
-| `yourss.image.tag` | chart `appVersion` | |
+| `yourss.image.tag` | `main` | set a release tag when one exists |
 | `yourss.image.pullPolicy` | `IfNotPresent` | |
 | `yourss.timezone` | `Europe/Paris` | `TZ` |
 | `yourss.logLevel` | `INFO` | `LOGURU_LEVEL` |

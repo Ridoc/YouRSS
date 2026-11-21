@@ -5,7 +5,8 @@ replicaCount: 1
 yourss:
   image:
     repository: ghcr.io/ridoc/yourss
-    # tag: main
+    # main until a fork release tag is cut; appVersion remains the app version.
+    tag: main
     pullPolicy: IfNotPresent
   timezone: Europe/Paris
   logLevel: INFO
