@@ -5,8 +5,8 @@ replicaCount: 1
 yourss:
   image:
     repository: ghcr.io/ridoc/yourss
-    # main until a fork release tag is cut; appVersion remains the app version.
-    tag: main
+    # Immutable delivery tag for the 2026-11-21 rollout.
+    tag: "2026.11.21"
     pullPolicy: IfNotPresent
   timezone: Europe/Paris
   logLevel: INFO
@@ -197,7 +197,8 @@ resources:
     # no cpu limit on purpose (avoid throttling a bursty I/O-bound app)
     memory: 512Mi
 
-# The pods share nothing: each one has its own cache
+# UNSAFE for this SQLite chart: two pods mean two writers on one RWO database.
+# The chart fails rendering when this is enabled or replicaCount > 1.
 autoscaling:
   enabled: false
   minReplicas: 1

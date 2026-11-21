@@ -5,9 +5,13 @@ metadata:
   labels:
     {{- include "yourss.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
+  {{- if or .Values.autoscaling.enabled (gt (int .Values.replicaCount) 1) }}
+  {{- fail "SQLite: one writer only — keep replicaCount=1 and autoscaling.enabled=false" }}
   {{- end }}
+  {{- if and .Values.ingress.enabled (eq (toString .Values.yourss.forwardedAllowIps) "127.0.0.1") }}
+  {{- fail "ingress.enabled requires yourss.forwardedAllowIps = the ingress controller/pod CIDR" }}
+  {{- end }}
+  replicas: {{ .Values.replicaCount }}
   # WHY: SQLite is single-writer; a surge pod would mount the same RWO volume and race migrations/warm-up.
   strategy:
     type: Recreate
