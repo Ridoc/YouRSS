@@ -51,10 +51,6 @@ async function syncWatched(add, remove) {
         remove: remove.slice(index, index + 500),
       })
       if (!response.ok) return
-      const data = await response.json()
-      Object.keys(serverWatched).forEach((id) => delete serverWatched[id])
-      Object.assign(serverWatched, data)
-      applyWatched()
     }
   } catch {
     // Offline: the next page load reads the server map; the local copy keeps working.
@@ -90,6 +86,7 @@ export function setWatched(ids, watched = true) {
     }
   }
   writeWatched(map)
+  // The local map stays authoritative until the next page load: the server response must not re-render cards.
   syncWatched(add, remove)
 }
 
