@@ -49,10 +49,13 @@ def custom_pages_disabled(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/", response_class=HTMLResponse)
-async def root(request: Request) -> HTMLResponse:
+@router.get("/", response_class=HTMLResponse, response_model=None)
+async def root(request: Request) -> HTMLResponse | RedirectResponse:
+    account = getattr(request.state, "user", None)
+    if account is not None:
+        return RedirectResponse(f"/u/{account.username}", status_code=HTTP_303_SEE_OTHER)
     if not current_config.custom_pages_enabled:
-        return custom_pages_disabled(request)
+        return RedirectResponse("/login", status_code=HTTP_303_SEE_OTHER)
     # The home page is the tutorial: an editable page without any channel yet
     return template_page(request, "pages/home.jinja-html", title="Home", page_names=[])
 

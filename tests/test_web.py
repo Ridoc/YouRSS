@@ -456,12 +456,14 @@ async def test_api_resolve_from_video(client: AsyncClient) -> None:
 async def test_custom_pages_disabled(client: AsyncClient, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(current_config, "custom_pages_enabled", False)
 
-    # The home page and the multi channel pages are an error page
-    for path in ("/", "/UCVooVnzQxPSTXTMzSi1s6uw"):
-        resp = await client.get(path)
-        assert resp.status_code == 403
-        assert "Custom pages are disabled" in resp.text
-        assert "data-page-names" not in resp.text
+    # The root sends visitors to the login page; a multi channel page is still an error page
+    resp = await client.get("/")
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login"
+    resp = await client.get("/UCVooVnzQxPSTXTMzSi1s6uw")
+    assert resp.status_code == 403
+    assert "Custom pages are disabled" in resp.text
+    assert "data-page-names" not in resp.text
     resp = await client.get("/api/resolve", params={"q": "UCVooVnzQxPSTXTMzSi1s6uw"})
     assert resp.status_code == 403
 

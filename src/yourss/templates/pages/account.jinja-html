@@ -7,7 +7,7 @@
       <h1 id="yourss-account-title">{{ account.username }}</h1>
       <p class="yourss-muted">{{ account.email or "No email address yet" }}</p>
     </div>
-    <a class="yourss-btn" href="/">Back to videos</a>
+    <a class="yourss-btn" href="/u/{{ account.username }}">Back to videos</a>
   </header>
 
   {% if account.role == "admin" %}

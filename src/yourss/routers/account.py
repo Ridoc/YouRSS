@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from typing import Annotated
+from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -29,7 +30,7 @@ from ..youtube import YoutubeApi
 from .jinja import template_page
 
 router = APIRouter()
-VIDEO_PREFIXES = ("https://www.youtube.com/watch?v=", "https://youtube.com/watch?v=", "https://youtu.be/")
+YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
 
 
 def _redirect(path: str) -> RedirectResponse:
@@ -47,8 +48,52 @@ def _error(request: Request, message: str, *, status: int = 400) -> HTMLResponse
     )
 
 
+def _parse_youtube_ref(ref: str) -> tuple[str, str] | None:
+    """Return (kind, value) for a pasted YouTube URL; None when it is not one."""
+    parsed = urlparse(ref if "://" in ref else f"https://{ref}")
+    host = (parsed.hostname or "").lower()
+    if host not in YOUTUBE_HOSTS:
+        return None
+    if host == "youtu.be":
+        video_id = parsed.path.strip("/").split("/")[0]
+        return ("video", video_id) if len(video_id) == 11 else None
+    parts = [part for part in parsed.path.split("/") if part]
+    query = parse_qs(parsed.query)
+    if not parts:
+        if "list" in query:
+            return "playlist", query["list"][0]
+        if "v" in query:
+            return "video", query["v"][0]
+        return None
+    head = parts[0]
+    if head.startswith("@") and len(head) > 1:
+        return "handle", head
+    if head == "channel" and len(parts) > 1 and len(parts[1]) == 24 and parts[1].startswith("UC"):
+        return "channel", parts[1]
+    if head == "playlist" and "list" in query:
+        return "playlist", query["list"][0]
+    if head in {"watch", "shorts", "live", "embed"}:
+        if "v" in query:
+            return "video", query["v"][0]
+        if len(parts) > 1:
+            return "video", parts[1]
+    return None
+
+
 async def _resolve_ref(ref: str) -> tuple[str, str]:
     ref = ref.strip()
+    parsed = _parse_youtube_ref(ref)
+    if parsed is not None:
+        kind, value = parsed
+        if kind == "channel":
+            return "channel", value
+        if kind == "playlist":
+            return "playlist", value
+        if kind == "handle":
+            channel = await YoutubeApi().get_channel(value)
+            return "channel", channel.channel_id
+        channel_id = await YoutubeApi().get_video_channel(value[:11])
+        return "channel", channel_id
     if ref.startswith("PL"):
         return "playlist", ref
     if ref.startswith("UC") and len(ref) == 24:
@@ -56,10 +101,6 @@ async def _resolve_ref(ref: str) -> tuple[str, str]:
     if ref.startswith("@"):
         channel = await YoutubeApi().get_channel(ref)
         return "channel", channel.channel_id
-    if ref.startswith(VIDEO_PREFIXES):
-        video_id = ref.rsplit("v=", 1)[-1] if "watch?v=" in ref else ref.rsplit("/", 1)[-1]
-        channel_id = await YoutubeApi().get_video_channel(video_id[:11])
-        return "channel", channel_id
     raise SubscriptionError("Use a channel id (UC…), a handle (@name), a playlist id (PL…) or a video URL")
 
 

@@ -455,7 +455,7 @@ async def test_logout_clears_the_session_cookie(
     user_id = await seed_user(username, email=f"{username}@example.com")
     cookie = accounts.create_session_cookie(secret_key, user_id, 1, int(current_config.session_ttl.total_seconds()))
     client.cookies.set(accounts.SESSION_COOKIE, cookie, path="/", domain="test.local")
-    page = await client.get("/")
+    page = await client.get("/account")
     assert page.status_code == 200
     soup = BeautifulSoup(page.text, "html.parser")
     form = soup.select_one("form.yourss-logout[action='/logout']")
@@ -479,7 +479,7 @@ async def test_logout_requires_csrf(client: AsyncClient, seed_user: SeedUser, se
     client.cookies.set(accounts.SESSION_COOKIE, cookie, path="/", domain="test.local")
     resp = await client.post("/logout")
     assert resp.status_code == 403
-    page = await client.get("/")
+    page = await client.get("/account")
     assert BeautifulSoup(page.text, "html.parser").select("form.yourss-logout[action='/logout']")
 
 
