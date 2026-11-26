@@ -791,4 +791,5 @@ html[data-slide]::view-transition-new(root) { animation: yourss-slide-in .2s eas
 .yourss-table th, .yourss-table td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
 .yourss-table th { color: var(--fg-muted); font-weight: 600; }
 .yourss-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.yourss-duration { font-variant-numeric: tabular-nums; color: var(--fg-muted); font-size: .78rem; padding: .05rem .3rem; border: 1px solid var(--line); border-radius: 5px; }
+.yourss-duration { pointer-events: none; font-variant-numeric: tabular-nums; }
+.yourss-video.is-playing .yourss-duration { display: none; }

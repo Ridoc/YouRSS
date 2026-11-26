@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING
 
+from bs4 import BeautifulSoup
 from pytest import MonkeyPatch
 
 from yourss.routers.jinja import jinja_env
@@ -32,6 +33,9 @@ def test_video_card_shows_duration_and_like() -> None:
     )
     assert "4:05" in html
     assert "Like on YouTube" in html
+    soup = BeautifulSoup(html, "html.parser")
+    badge = soup.select_one(".yourss-media .yourss-duration")
+    assert badge is not None and badge.text == "4:05"
 
 
 async def test_enrich_uses_the_cached_duration(db: "Database", monkeypatch: MonkeyPatch) -> None:
