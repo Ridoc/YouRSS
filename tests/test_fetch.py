@@ -262,3 +262,14 @@ def test_fetch_summary_failed_and_stale() -> None:
 )
 def test_age_text(age: timedelta, text: str) -> None:
     assert age_text(age) == text
+
+
+async def test_async_fetch_does_not_ask_youtube_for_an_invalid_name(monkeypatch: MonkeyPatch) -> None:
+    async def boom(*args: object, **kwargs: object) -> None:
+        raise AssertionError("must not ask Youtube")
+
+    monkeypatch.setattr(YoutubeApi, "get_channel_rss", boom)
+    monkeypatch.setattr(YoutubeApi, "get_playlist_rss", boom)
+    (status,) = await async_fetch(["not-a-channel"], api=YoutubeApi())
+    assert status.state is State.FAILED
+    assert status.reason == "Not a channel id, a playlist id or a handle"

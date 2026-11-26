@@ -26,6 +26,14 @@ security = HTTPBasic(auto_error=False)
 argon2hasher = PasswordHasher()
 # WHY: Argon2 is CPU-heavy; two concurrent verifications bound the damage of a password-spray request burst.
 _verify_slots = asyncio.Semaphore(2)
+# How long a check waits for a free slot before the request is refused with a 429, in seconds.
+_ARGON2_WAIT = 1.0
+# A wrong password answers after this delay, in seconds, to slow down guessing.
+_WRONG_PASSWORD_DELAY = 1.0
+
+
+class TooManyLogins(Exception):
+    """Every password slot stayed busy: the application answers a 429 (see `main.py`)."""
 
 
 class PasswordUser(Protocol):
@@ -73,8 +81,17 @@ def verify_password(user: PasswordUser, value: str) -> bool:
 
 
 async def verify_password_async(user: PasswordUser, value: str) -> bool:
-    async with _verify_slots:
-        return await asyncio.to_thread(verify_password, user, value)
+    try:
+        await asyncio.wait_for(_verify_slots.acquire(), timeout=_ARGON2_WAIT)
+    except TimeoutError:
+        raise TooManyLogins() from None
+    try:
+        out = await asyncio.to_thread(verify_password, user, value)
+    finally:
+        _verify_slots.release()
+    if not out:
+        await asyncio.sleep(_WRONG_PASSWORD_DELAY)
+    return out
 
 
 def read_config() -> UsersConfig | None:

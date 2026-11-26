@@ -71,6 +71,7 @@ def template_page(
             "request": request,
             "link_prefix": link_prefix(request),
             "max_page_items": current_config.max_page_items,
+            "noindex": current_config.noindex or current_config.private,
             "version": __version__,
             "csrf_token": csrf_token,
             "user": getattr(request.state, "user", None),

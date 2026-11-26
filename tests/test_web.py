@@ -464,6 +464,9 @@ async def test_custom_pages_disabled(client: AsyncClient, monkeypatch: MonkeyPat
     assert resp.status_code == 403
     assert "Custom pages are disabled" in resp.text
     assert "data-page-names" not in resp.text
+    resp = await client.get("/not-a-channel")
+    assert resp.status_code == 404
+    assert "No page of this instance has this address." in resp.text
     resp = await client.get("/api/resolve", params={"q": "UCVooVnzQxPSTXTMzSi1s6uw"})
     assert resp.status_code == 403
 

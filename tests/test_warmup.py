@@ -24,7 +24,7 @@ async def test_warm_round_refreshes_every_page() -> None:
         logger.remove(handler)
     (summary,) = [line for line in lines if line.startswith("Warm-up:")]
     # The pages of the sample file but Cards (`warmup: false`), a channel in several pages counted once
-    assert summary.startswith("Warm-up: 4 pages (1 skipped), 9 channels, 0 failed, ")
+    assert summary.startswith("Warm-up: 4 pages (1 skipped), 9 channels, 0 stale, 0 failed, ")
 
 
 async def test_warm_round_asks_a_channel_once(monkeypatch: MonkeyPatch) -> None:

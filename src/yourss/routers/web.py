@@ -150,6 +150,15 @@ async def user_login(
     csrf_token: Annotated[str, Form()] = "",
 ) -> Response:
     """The login form posts to the page it protects, the answer goes back to it (docs/specs/login.md §2, §7)."""
+    # Set by the browser, a page cannot forge it: no login or logout from another site; absent, it passes
+    if request.headers.get("sec-fetch-site") == "cross-site":
+        return template_page(
+            request,
+            "pages/error.jinja-html",
+            status_code=HTTP_403_FORBIDDEN,
+            title="Cross-site form refused",
+            message="This form can only be sent from this instance.",
+        )
     if user is None or user.disabled_at is not None:
         raise UnknownUser()
     # WHY: a junk POST without a CSRF token must not drain the shared login limiter for a NAT.
@@ -242,13 +251,14 @@ async def page(
         ),
     ],
 ) -> HTMLResponse:
-    if not current_config.custom_pages_enabled:
-        return custom_pages_disabled(request)
-    # Split and checked by the type, before anything is asked to Youtube
+    # Split and checked by the type, before anything is asked to Youtube; an unknown path is a 404 even when disabled
     try:
         ids = SUBSCRIPTIONS.validate_python(subscriptions)
     except ValidationError as error:
-        if any(detail["type"] == TOO_MANY for detail in error.errors()):
+        too_many = any(detail["type"] == TOO_MANY for detail in error.errors())
+        if too_many and not current_config.custom_pages_enabled:
+            return custom_pages_disabled(request)
+        if too_many:
             return template_page(
                 request,
                 "pages/error.jinja-html",
@@ -256,6 +266,15 @@ async def page(
                 title="Too many subscriptions",
                 message=f"A page of this instance holds at most {current_config.max_page_items} items.",
                 home_link=True,
+            )
+        if not current_config.custom_pages_enabled:
+            # No hint towards the home page: it is refused too
+            return template_page(
+                request,
+                "pages/error.jinja-html",
+                status_code=HTTP_404_NOT_FOUND,
+                title="This page does not exist",
+                message="No page of this instance has this address.",
             )
         return template_page(
             request,
@@ -268,6 +287,8 @@ async def page(
             ),
             home_link=True,
         )
+    if not current_config.custom_pages_enabled:
+        return custom_pages_disabled(request)
     statuses = await async_fetch(ids, api=YoutubeApi())
     context = await page_context_with_durations(request.app.state.db, statuses)
     return template_page(
