@@ -114,6 +114,18 @@ def _duration_from_metadata_rows(rows: Any) -> int | None:
     return None
 
 
+_DURATION_BADGE = re.compile(r"^\d{1,2}(?::\d{2}){1,2}$")
+
+
+def _duration_from_badges(image: Any) -> int | None:
+    """The duration shown on a channel-page thumbnail ("11:46"), not a label such as "LIVE"."""
+    for badge in iter_key("thumbnailBadgeViewModel", image if isinstance(image, dict) else {}, dict):
+        text = str(badge.get("text") or "")
+        if _DURATION_BADGE.match(text):
+            return duration_seconds(text)
+    return None
+
+
 def _nested_text(payload: Any, key: str) -> str | None:
     """Find ``key`` anywhere in ``payload`` then read its ``.content`` string."""
     node = find_key(key, payload, dict)
@@ -188,7 +200,7 @@ class LockupVideoParser(ItemParser):
             "views_text": _views_from_metadata_rows(rows),
             "thumbnail": simple_url(thumbnail) if thumbnail else None,
         }
-        duration = _duration_from_metadata_rows(rows)
+        duration = _duration_from_metadata_rows(rows) or _duration_from_badges(node.get("contentImage"))
         if duration is not None:
             out["duration_seconds"] = duration
         return out

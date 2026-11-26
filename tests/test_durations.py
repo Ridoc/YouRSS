@@ -9,7 +9,7 @@ from yourss.routers.jinja import jinja_env
 from yourss.routers.utils import duration_text, enrich_durations
 from yourss.settings import current_config
 from yourss.youtube import VideoDescription
-from yourss.youtube.scraping.items import duration_seconds
+from yourss.youtube.scraping.items import LockupVideoParser, _duration_from_badges, duration_seconds
 
 if TYPE_CHECKING:
     from yourss.db import Database
@@ -24,6 +24,29 @@ def test_duration_parsing() -> None:
     assert duration_text(245) == "4:05"
     assert duration_text(3723) == "1:02:03"
     assert duration_text(None) == ""
+
+
+def _badged(*texts: str) -> dict[str, object]:
+    overlays = [{"thumbnailBadgeViewModel": {"text": text}} for text in texts]
+    return {"thumbnailViewModel": {"overlays": overlays}}
+
+
+def test_duration_from_thumbnail_badge() -> None:
+    assert _duration_from_badges(_badged("11:46")) == 706
+    assert _duration_from_badges(_badged("1:02:03")) == 3723
+    assert _duration_from_badges(_badged("LIVE")) is None
+    assert _duration_from_badges({}) is None
+
+
+def test_lockup_parser_reads_the_thumbnail_badge() -> None:
+    node = {
+        "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+        "contentId": "dQw4w9WgXcQ",
+        "contentImage": _badged("4:05"),
+        "metadata": {"lockupMetadataViewModel": {"title": {"content": "A video"}}},
+    }
+    out = LockupVideoParser().extract(node)
+    assert out is not None and out["duration_seconds"] == 245
 
 
 def test_video_card_shows_duration_and_like() -> None:

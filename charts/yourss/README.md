@@ -17,7 +17,7 @@ Each value under `yourss` maps to one `YOURSS_*` environment variable.
 | Value | Default | Variable |
 | --- | --- | --- |
 | `yourss.image.repository` | `ghcr.io/ridoc/yourss` | |
-| `yourss.image.tag` | `2026.11.26.4` | immutable rollout tag |
+| `yourss.image.tag` | `2026.11.26.5` | immutable rollout tag |
 | `yourss.image.pullPolicy` | `IfNotPresent` | |
 | `yourss.timezone` | `Europe/Paris` | `TZ` |
 | `yourss.logLevel` | `INFO` | `LOGURU_LEVEL` |
