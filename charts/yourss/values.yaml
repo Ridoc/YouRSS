@@ -6,7 +6,7 @@ yourss:
   image:
     repository: ghcr.io/ridoc/yourss
     # Immutable delivery tag for the 2026-11-21 rollout.
-    tag: "2026.11.26.1"
+    tag: "2026.11.26.2"
     pullPolicy: IfNotPresent
   timezone: Europe/Paris
   logLevel: INFO

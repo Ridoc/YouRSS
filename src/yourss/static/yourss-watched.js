@@ -44,8 +44,13 @@ function writeWatched(map) {
 async function syncWatched(add, remove) {
   if (!serverWatched || (!add.length && !remove.length)) return
   try {
-    const response = await watchedRequest("/api/watched", { add, remove })
-    if (response.ok) {
+    // WHY: the API accepts 500 ids per list; a whole "All" folder (1000+) must go in batches.
+    for (let index = 0; index < Math.max(add.length, remove.length); index += 500) {
+      const response = await watchedRequest("/api/watched", {
+        add: add.slice(index, index + 500),
+        remove: remove.slice(index, index + 500),
+      })
+      if (!response.ok) return
       const data = await response.json()
       Object.keys(serverWatched).forEach((id) => delete serverWatched[id])
       Object.assign(serverWatched, data)
