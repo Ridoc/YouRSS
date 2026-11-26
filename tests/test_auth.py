@@ -262,12 +262,12 @@ async def test_verify_requires_csrf(client: AsyncClient, db: "Database", seed_us
 async def test_request_is_rate_limited_per_ip(client: AsyncClient) -> None:
     token = await login_csrf(client)
     statuses = []
-    for index in range(6):
+    for index in range(11):
         email = f"{unique(f'rate{index}')}@example.com"
         resp = await client.post("/auth/request", data={"email": email, "csrf_token": token})
         statuses.append(resp.status_code)
-    assert statuses[:5] == [303] * 5
-    assert statuses[5] == 429
+    assert statuses[:10] == [303] * 10
+    assert statuses[10] == 429
     limited = await client.post("/auth/request", data={"email": f"{unique('more')}@example.com", "csrf_token": token})
     assert limited.status_code == 429
     assert int(limited.headers["retry-after"]) >= 1

@@ -73,8 +73,6 @@ async def request_link(
         normalized = accounts.normalize_email(email)
     except ValueError:
         return RedirectResponse(f"/login?sent=1&next={quote(_safe_next(next))}", status_code=HTTP_303_SEE_OTHER)
-    if not ratelimit.login_email_limiter.allow(normalized):
-        raise _too_many(ratelimit.login_email_limiter.retry_after(normalized))
     turnstile_secret = (
         current_config.turnstile_secret_key.get_secret_value()
         if current_config.turnstile_secret_key is not None
@@ -82,6 +80,10 @@ async def request_link(
     )
     if not await captcha.verify_turnstile(turnstile_secret, turnstile, ip):
         raise HTTPException(403, "Verification failed. Try again.")
+
+    # WHY: only a Turnstile-valid request may spend the address budget, so a third party cannot lock it out.
+    if not ratelimit.login_email_limiter.allow(normalized):
+        raise _too_many(ratelimit.login_email_limiter.retry_after(normalized))
 
     db = request.app.state.db
     row = await db.fetchone("SELECT 1 FROM users WHERE email = ? COLLATE NOCASE", (normalized,))

@@ -43,8 +43,9 @@ class RateLimiter:
         self._events.clear()
 
 
-login_ip_limiter = RateLimiter(5, 60)
-login_email_limiter = RateLimiter(3, 3600)
+login_ip_limiter = RateLimiter(10, 60)
+# WHY: one link per device plus a retry must not lock a real user out for an hour.
+login_email_limiter = RateLimiter(10, 3600)
 verify_ip_limiter = RateLimiter(20, 60)
 auth_general_limiter = RateLimiter(60, 60)
 

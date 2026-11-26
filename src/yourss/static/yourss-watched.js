@@ -17,7 +17,8 @@ function readLocalWatched() {
 }
 
 function readWatched() {
-  return serverWatched ? { ...serverWatched } : readLocalWatched()
+  // The server map is mutated in place: applyWatched() must see a click before the request resolves.
+  return serverWatched || readLocalWatched()
 }
 
 function csrfToken() {
@@ -48,6 +49,7 @@ async function syncWatched(add, remove) {
       const data = await response.json()
       Object.keys(serverWatched).forEach((id) => delete serverWatched[id])
       Object.assign(serverWatched, data)
+      applyWatched()
     }
   } catch {
     // Offline: the next page load reads the server map; the local copy keeps working.
