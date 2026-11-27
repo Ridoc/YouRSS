@@ -625,6 +625,7 @@ async def test_pages_are_compressed_on_request(client: AsyncClient) -> None:
     assert plain.status_code == 200 and "content-encoding" not in plain.headers
 
 
+@mark.live
 async def test_htmx_channel_playlists_tab(client: AsyncClient) -> None:
     resp = await client.get("/htmx/channel/UCVooVnzQxPSTXTMzSi1s6uw", headers=HTMX)
     soup = BeautifulSoup(resp.text, features="html.parser")
