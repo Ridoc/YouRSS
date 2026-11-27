@@ -99,6 +99,17 @@ def duration_seconds(text: str | None) -> int | None:
     return None
 
 
+def _clock_seconds(text: str | None) -> int | None:
+    """Only a clock ("17:00", "1:02:03"); never a relative date such as "6 hours ago"."""
+    if not text:
+        return None
+    match = _CLOCK_DURATION.match(text.strip())
+    if not match:
+        return None
+    hours, minutes, seconds = (int(value or 0) for value in match.groups())
+    return hours * 3600 + minutes * 60 + seconds
+
+
 def _duration_from_metadata_rows(rows: Any) -> int | None:
     if not isinstance(rows, list):
         return None
@@ -108,7 +119,7 @@ def _duration_from_metadata_rows(rows: Any) -> int | None:
                 continue
             label = part.get("accessibilityLabel") or ""
             text = part.get("text", {}).get("content") or ""
-            parsed = duration_seconds(str(label)) or duration_seconds(str(text))
+            parsed = _clock_seconds(str(label)) or _clock_seconds(str(text))
             if parsed is not None:
                 return parsed
     return None
@@ -200,7 +211,8 @@ class LockupVideoParser(ItemParser):
             "views_text": _views_from_metadata_rows(rows),
             "thumbnail": simple_url(thumbnail) if thumbnail else None,
         }
-        duration = _duration_from_metadata_rows(rows) or _duration_from_badges(node.get("contentImage"))
+        # The badge is the real length; metadata rows also hold relative dates ("6 hours ago").
+        duration = _duration_from_badges(node.get("contentImage")) or _duration_from_metadata_rows(rows)
         if duration is not None:
             out["duration_seconds"] = duration
         return out

@@ -9,7 +9,12 @@ from yourss.routers.jinja import jinja_env
 from yourss.routers.utils import duration_text, enrich_durations
 from yourss.settings import current_config
 from yourss.youtube import VideoDescription
-from yourss.youtube.scraping.items import LockupVideoParser, _duration_from_badges, duration_seconds
+from yourss.youtube.scraping.items import (
+    LockupVideoParser,
+    _duration_from_badges,
+    _duration_from_metadata_rows,
+    duration_seconds,
+)
 
 if TYPE_CHECKING:
     from yourss.db import Database
@@ -36,6 +41,31 @@ def test_duration_from_thumbnail_badge() -> None:
     assert _duration_from_badges(_badged("1:02:03")) == 3723
     assert _duration_from_badges(_badged("LIVE")) is None
     assert _duration_from_badges({}) is None
+
+
+def test_metadata_rows_do_not_turn_a_publish_age_into_a_duration() -> None:
+    assert _duration_from_metadata_rows([{"metadataParts": [{"text": {"content": "6 hours ago"}}]}]) is None
+    assert _duration_from_metadata_rows([{"metadataParts": [{"text": {"content": "17:00"}}]}]) == 1020
+
+
+def test_lockup_parser_prefers_the_badge_over_a_publish_age() -> None:
+    node = {
+        "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+        "contentId": "dQw4w9WgXcQ",
+        "contentImage": _badged("17:00"),
+        "metadata": {
+            "lockupMetadataViewModel": {
+                "title": {"content": "A video"},
+                "metadata": {
+                    "contentMetadataViewModel": {
+                        "metadataRows": [{"metadataParts": [{"text": {"content": "6 hours ago"}}]}]
+                    }
+                },
+            }
+        },
+    }
+    out = LockupVideoParser().extract(node)
+    assert out is not None and out["duration_seconds"] == 1020
 
 
 def test_lockup_parser_reads_the_thumbnail_badge() -> None:
