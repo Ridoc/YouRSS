@@ -99,6 +99,9 @@
       {% if videos is defined or folders is defined %}
       <button type="button" class="yourss-icon-btn yourss-listen-btn" data-action="listen" title="Listen: play the page as music (l)" aria-label="Listen"><svg><use href="#i-headphones" /></svg></button>
       {% endif %}
+      {% if user and request.url.path != '/account' %}
+      <a class="yourss-icon-btn yourss-account-btn" href="/account" title="Your account" aria-label="Your account"><svg><use href="#i-user" /></svg></a>
+      {% endif %}
       <button type="button" class="yourss-icon-btn yourss-settings-btn" data-action="settings" aria-label="Settings"><svg><use href="#i-settings" /></svg></button>
     </header>
 

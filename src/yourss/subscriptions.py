@@ -363,6 +363,36 @@ async def delete_subscription(db: Database, page_id: int, subscription_id: int) 
         raise SubscriptionError("subscription not found")
 
 
+async def move_subscription(db: Database, page_id: int, subscription_id: int, direction: str) -> bool:
+    """Swap one subscription with its nearest same-kind neighbour; False at a group boundary."""
+    if direction not in {"up", "down"}:
+        raise SubscriptionError("direction must be up or down")
+    async with db.transaction():
+        rows = await db.fetchall(
+            "SELECT id, kind, position FROM subscriptions WHERE page_id = ? ORDER BY position, id",
+            (page_id,),
+        )
+        index = next((i for i, row in enumerate(rows) if int(row["id"]) == subscription_id), None)
+        if index is None:
+            raise SubscriptionError("subscription not found")
+        kind = str(rows[index]["kind"])
+        step = -1 if direction == "up" else 1
+        neighbour = index + step
+        while 0 <= neighbour < len(rows) and str(rows[neighbour]["kind"]) != kind:
+            neighbour += step
+        if not 0 <= neighbour < len(rows):
+            return False
+        # WHY: renumber the whole page so positions stay contiguous even when kinds are interleaved.
+        order = list(rows)
+        order[index], order[neighbour] = order[neighbour], order[index]
+        for position, row in enumerate(order):
+            await db.execute(
+                "UPDATE subscriptions SET position = ? WHERE page_id = ? AND id = ?",
+                (position, page_id, int(row["id"])),
+            )
+        return True
+
+
 async def reorder_subscriptions(db: Database, page_id: int, ids: list[int]) -> None:
     existing = await list_subscriptions(db, page_id)
     existing_ids = {int(row["id"]) for row in existing}

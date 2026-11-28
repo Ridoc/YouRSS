@@ -1,13 +1,22 @@
 import re
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 from bs4 import BeautifulSoup
 from httpx import AsyncClient, BasicAuth
 from pytest import MonkeyPatch, mark
 
 from tests.sample import sample_playlist
+from yourss import accounts
 from yourss.routers.utils import next_page_url
 from yourss.settings import current_config, static_folder
 from yourss.youtube import ChannelPage, ChannelTab, YoutubeApi
+
+if TYPE_CHECKING:
+    from yourss.db import Database
+
+SeedUser = Callable[..., Awaitable[int]]
 
 # What htmx sends with each of its requests
 HTMX = {"HX-Request": "true"}
@@ -711,3 +720,77 @@ async def test_auth_request_is_not_swallowed_by_the_subscriptions_route(client: 
     assert resp.status_code != 405
     assert resp.status_code != 404
     assert resp.status_code in (403, 422)
+
+
+def login(client: AsyncClient, user_id: int, secret: str, version: int = 1) -> None:
+    client.cookies.set(
+        accounts.SESSION_COOKIE,
+        accounts.create_session_cookie(secret, user_id, version, 3600),
+    )
+
+
+async def csrf(client: AsyncClient, path: str = "/account") -> str:
+    response = await client.get(path)
+    assert response.status_code == 200
+    return str(client.cookies[accounts.CSRF_COOKIE])
+
+
+async def test_signed_in_account_entry_points_and_owner_manage(
+    client: AsyncClient, db: "Database", seed_user: SeedUser, secret_key: str
+) -> None:
+    owner = await seed_user("nav-owner")
+    login(client, owner, secret_key)
+    token = await csrf(client)
+    page = "Nav Page"
+    created = await client.post("/account/pages", data={"name": page, "csrf_token": token})
+    assert created.status_code == 303
+
+    address = f"/u/nav-owner/{quote(page)}"
+    response = await client.get(address)
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Topbar, sidebar foot and Settings all reach the account; the topbar hides its self-link on /account.
+    topbar_account = soup.select_one(".yourss-topbar a.yourss-account-btn")
+    sidebar_account = soup.select_one(".yourss-sidebar-foot a.yourss-account-link")
+    settings_account = soup.select_one("#yourss-settings a.yourss-account-link")
+    assert topbar_account is not None and sidebar_account is not None and settings_account is not None
+    assert topbar_account["href"] == "/account"
+    assert sidebar_account["href"] == "/account"
+    assert settings_account["href"] == "/account"
+    manage = soup.select_one("a.yourss-manage-link")
+    assert manage is not None
+    assert manage["href"] == f"/account/pages/{quote(page)}"
+    assert manage["aria-label"] == f"Manage subscriptions of {page}"
+
+    # The htmx folder fragment carries the same managed row in its out-of-band list.
+    fragment = await client.get(address, headers=HTMX)
+    assert fragment.status_code == 200
+    fsoup = BeautifulSoup(fragment.text, "html.parser")
+    (folder_list,) = fsoup.select("ul[data-folder-list]")
+    assert folder_list["hx-swap-oob"] == "true"
+    fragment_manage = folder_list.select_one("a.yourss-manage-link")
+    assert fragment_manage is not None
+    assert fragment_manage["href"] == f"/account/pages/{quote(page)}"
+
+    # Another user's folder and a public page never expose the owner's Manage link, full page or OOB fragment.
+    for protected in ("/u/alice/Homepage", "/p/fun"):
+        other = await client.get(protected)
+        assert other.status_code == 200
+        assert BeautifulSoup(other.text, "html.parser").select_one("a.yourss-manage-link") is None
+        other_fragment = await client.get(protected, headers=HTMX)
+        assert other_fragment.status_code == 200
+        assert BeautifulSoup(other_fragment.text, "html.parser").select_one("a.yourss-manage-link") is None
+
+    # The account page itself has no topbar self-link.
+    account = await client.get("/account")
+    assert account.status_code == 200
+    assert BeautifulSoup(account.text, "html.parser").select_one(".yourss-topbar a.yourss-account-btn") is None
+
+
+async def test_signed_out_pages_have_no_account_entry_points(client: AsyncClient) -> None:
+    response = await client.get("/login")
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.text, "html.parser")
+    assert soup.select('a[href="/account"]') == []
+    assert soup.select_one("a.yourss-manage-link") is None

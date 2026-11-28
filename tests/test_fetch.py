@@ -172,21 +172,22 @@ def _status(
 
 
 def test_page_entries_order() -> None:
+    # The DB position order: channels and playlists may be interleaved; each group keeps that order.
     statuses = [
+        _status("UC" + "b" * 22, label="bob"),
         _status("PL" + "b" * 32, label="Zeta list"),
         _status("UC" + "z" * 22, State.FAILED),
-        _status("UC" + "b" * 22, label="bob"),
         _status("UC" + "a" * 22, State.STALE, label="Alice", age=timedelta(hours=1)),
         _status("PL" + "a" * 32, State.FAILED),
         _status("UC" + "c" * 22, State.FAILED, label="Carol"),
         _status("@dave", State.FAILED),
     ]
     assert [s.label or s.name for s in page_entries(statuses)] == [
-        "Alice",  # stale, keeps its place
         "bob",
-        "Carol",  # failed but known, keeps its place
+        "Alice",  # stale, keeps its place
+        "Carol",  # failed but known, stays in Channels
         "Zeta list",
-        "@dave",  # nothing known: raw names last, by name
+        "@dave",  # nothing known: unresolved last, by raw ref
         "PL" + "a" * 32,
         "UC" + "z" * 22,
     ]

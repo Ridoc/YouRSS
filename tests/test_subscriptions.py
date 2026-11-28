@@ -18,6 +18,7 @@ from yourss.subscriptions import (
     get_page,
     list_pages,
     list_subscriptions,
+    move_subscription,
     rename_page,
     reorder_subscriptions,
     set_publish,
@@ -75,6 +76,59 @@ async def test_subscription_order_duplicate_and_delete(db: "Database", seed_user
         await reorder_subscriptions(db, page_id, [int(first["id"])])
     await delete_subscription(db, page_id, int(first["id"]))
     assert len(await list_subscriptions(db, page_id)) == 1
+
+
+async def test_move_subscription_within_kind(db: "Database", seed_user: SeedUser) -> None:
+    user_id = await seed_user(f"sub-{uuid4().hex[:8]}")
+    page = await create_page(db, AppSettings(), user_id, name())
+    page_id = int(page["id"])
+    first_channel = await add_subscription(db, AppSettings(), page_id, "UC" + "a" * 22)
+    first_playlist = await add_subscription(db, AppSettings(), page_id, "PL" + "b" * 32)
+    second_channel = await add_subscription(db, AppSettings(), page_id, "UC" + "c" * 22)
+    second_playlist = await add_subscription(db, AppSettings(), page_id, "PL" + "d" * 32)
+
+    assert await move_subscription(db, page_id, int(second_channel["id"]), "up") is True
+    rows = await list_subscriptions(db, page_id)
+    assert [int(row["id"]) for row in rows] == [
+        int(second_channel["id"]),
+        int(first_playlist["id"]),
+        int(first_channel["id"]),
+        int(second_playlist["id"]),
+    ]
+    assert [int(row["position"]) for row in rows] == [0, 1, 2, 3]
+
+    # A playlist moves only past playlists: channels keep their positions.
+    assert await move_subscription(db, page_id, int(first_playlist["id"]), "down") is True
+    rows = await list_subscriptions(db, page_id)
+    assert [int(row["id"]) for row in rows] == [
+        int(second_channel["id"]),
+        int(second_playlist["id"]),
+        int(first_channel["id"]),
+        int(first_playlist["id"]),
+    ]
+    assert [int(row["position"]) for row in rows] == [0, 1, 2, 3]
+    assert [int(row["id"]) for row in rows if row["kind"] == "channel"] == [
+        int(second_channel["id"]),
+        int(first_channel["id"]),
+    ]
+    assert [int(row["id"]) for row in rows if row["kind"] == "playlist"] == [
+        int(second_playlist["id"]),
+        int(first_playlist["id"]),
+    ]
+
+    # Boundary and unknown/invalid moves leave the page untouched.
+    assert await move_subscription(db, page_id, int(second_channel["id"]), "up") is False
+    assert await move_subscription(db, page_id, int(first_playlist["id"]), "down") is False
+    with raises(SubscriptionError):
+        await move_subscription(db, page_id, 999999, "up")
+    with raises(SubscriptionError):
+        await move_subscription(db, page_id, int(first_channel["id"]), "left")
+    assert [int(row["id"]) for row in await list_subscriptions(db, page_id)] == [
+        int(second_channel["id"]),
+        int(second_playlist["id"]),
+        int(first_channel["id"]),
+        int(first_playlist["id"]),
+    ]
 
 
 async def test_subscription_cap_and_publish_toggle(db: "Database", seed_user: SeedUser) -> None:

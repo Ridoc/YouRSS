@@ -22,16 +22,12 @@ def split_subscriptions(text: str, delimiter: str = ",") -> list[str]:
 def page_entries(statuses: list[SubscriptionStatus]) -> list[SubscriptionStatus]:
     """What the sidebar lists, every subscription whatever its state (docs/specs/fetch-errors.md §3).
 
-    Channels with a name by name, then playlists with a title by title, then what has no name by raw id.
+    The caller passes statuses in saved position order; channels keep it, then playlists, then unresolved by ref.
     """
     channels = [s for s in statuses if s.kind is Kind.CHANNEL and s.label is not None]
     playlists = [s for s in statuses if s.kind is Kind.PLAYLIST and s.label is not None]
-    unnamed = [s for s in statuses if s.label is None]
-    return (
-        sorted(channels, key=lambda s: (s.label or "").lower())
-        + sorted(playlists, key=lambda s: (s.label or "").lower())
-        + sorted(unnamed, key=lambda s: s.name)
-    )
+    unresolved = sorted((s for s in statuses if s.label is None), key=lambda s: s.name)
+    return channels + playlists + unresolved
 
 
 def canonical_names(statuses: list[SubscriptionStatus]) -> list[str]:

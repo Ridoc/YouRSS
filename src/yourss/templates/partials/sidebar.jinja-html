@@ -39,6 +39,7 @@
       </summary>
       <ul id="yourss-folder-list-{{ item.name }}" class="yourss-channels" data-folder-list="{{ item.name }}">
         {% if current %}
+        {% include "partials/folder-manage.jinja-html" %}
         {% include "partials/entries.jinja-html" %}
         {% endif %}
       </ul>
@@ -72,6 +73,11 @@
     <button type="button" class="yourss-nav-item yourss-listen-btn" data-action="listen" title="Play the videos of the page one after the other, as music (l)">
       <svg><use href="#i-headphones" /></svg><span class="yourss-label">Listen</span>
     </button>
+    {% endif %}
+    {% if user %}
+    <a class="yourss-nav-item yourss-account-link" href="/account" title="Your account">
+      <svg><use href="#i-user" /></svg><span class="yourss-label">Account</span>
+    </a>
     {% endif %}
     <button type="button" class="yourss-nav-item yourss-settings-btn" data-action="settings" title="Settings">
       <svg><use href="#i-settings" /></svg><span class="yourss-label">Settings</span>

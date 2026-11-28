@@ -728,7 +728,19 @@ on("htmx:responseError", showFailure)
 on("htmx:sendError", showFailure)
 
 /* ---------- boot: a module runs once the document is parsed ---------- */
+function focusHashTarget() {
+  if (!location.hash) return
+  let id = location.hash.slice(1)
+  try {
+    id = decodeURIComponent(id)
+  } catch {
+    // WHY: a malformed hash is not a reason to break the page.
+  }
+  document.getElementById(id)?.focus()
+}
+
 document.addEventListener("error", retryAvatar, true)
+window.addEventListener("hashchange", focusHashTarget)
 window.addEventListener("scroll", () => $("#scroll-to-top").classList.toggle("visible", window.scrollY > 300), {
   passive: true,
 })
@@ -738,6 +750,7 @@ captureFeed()
 syncFolderFromUrl()
 syncChannelFromUrl()
 refresh()
+focusHashTarget()
 if (listenInUrl()) {
   enterListen()
 }

@@ -194,6 +194,7 @@ body.rail .yourss-caret { display: none; }
 /* ---- errors ---- */
 /* ---- notices: bookmark reminder after an edit, fetch status of the page ---- */
 .yourss-notice { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .75rem; margin-bottom: 1rem; padding: .6rem .6rem .6rem .9rem; border-radius: var(--radius); background: var(--accent-soft); border: 1px solid var(--accent); font-size: .9rem; }
+.yourss-notice:empty { display: none; }
 .yourss-notice > svg { width: 20px; height: 20px; color: var(--accent); }
 .yourss-notice > span { flex: 1 1 14rem; }
 .yourss-notice.is-warning { background: var(--err-bg); border-color: var(--err-line); }
@@ -217,6 +218,10 @@ body.rail .yourss-caret { display: none; }
 .yourss-add-field { height: 40px; background: var(--bg); border: 1px solid var(--line); }
 .yourss-add-submit { height: 40px; border-radius: 10px; border-color: var(--accent); background: var(--accent-soft); color: var(--fg); font-weight: 600; }
 .yourss-add-form.is-busy { opacity: .6; pointer-events: none; }
+/* The manager form is a vertical stack: label, field, hint, error, action. */
+.yourss-follow-card .yourss-add-form { display: flex; flex-direction: column; align-items: flex-start; gap: .45rem; }
+.yourss-follow-card .yourss-add-form input { width: 100%; }
+.yourss-follow-card .yourss-add-form .yourss-btn { align-self: flex-start; }
 .yourss-add-error { grid-column: 1 / -1; margin: 0; font-size: .85rem; color: var(--accent); }
 .yourss-add-examples { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .3rem .75rem; align-items: start; margin: .25rem 0 0; font-size: .8rem; line-height: 1.5; color: var(--fg-muted); }
 .yourss-add-examples dd { margin: 0; min-width: 0; }
@@ -569,6 +574,16 @@ body.listening .yourss-listen-btn svg { color: var(--accent); }
 button.yourss-nav-item { width: 100%; border: 0; background: transparent; text-align: left; font-weight: 600; }
 .yourss-settings-btn svg { color: var(--accent); }
 .yourss-topbar .yourss-settings-btn svg { width: 22px; height: 22px; }
+.yourss-account-btn svg { width: 22px; height: 22px; }
+.yourss-account-btn { color: var(--accent); }
+.yourss-account-link { justify-content: center; height: 40px; border-radius: 10px; }
+.yourss-account-link svg { width: 20px; height: 20px; }
+.yourss-manage { margin: .1rem 0 .35rem; }
+.yourss-manage-link { height: 40px; }
+.yourss-manage-link .yourss-label { font-weight: 600; }
+@media (pointer: coarse) {
+  .yourss-account-btn, .yourss-account-link, .yourss-manage-link { min-width: 44px; min-height: 44px; }
+}
 .yourss-settings { border: 0; padding: 0; background: transparent; color: var(--fg); width: min(440px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); }
 .yourss-settings::backdrop { background: rgba(0, 0, 0, .72); }
 .yourss-settings-box { display: flex; flex-direction: column; gap: 1rem; padding: 1rem 1.1rem 1.1rem; background: var(--bg-dialog, var(--bg-elev)); border: 1px solid var(--accent); border-radius: 16px; box-shadow: 0 0 0 4px var(--accent-soft), 0 0 60px var(--accent-soft), 0 30px 90px rgba(0, 0, 0, .7); }
@@ -627,6 +642,7 @@ button.yourss-nav-item { width: 100%; border: 0; background: transparent; text-a
 @media (max-width: 559px) {
   .yourss-topbar { gap: .35rem; }
   .yourss-topbar:has(.yourss-folder-nav) .yourss-brand { display: none; }
+  .yourss-topbar:has(.yourss-folder-nav) .yourss-listen-btn { display: none; }
 }
 
 /* ---- loading and transitions: a bar while a request runs, a view transition around every swap ---- */
@@ -786,6 +802,34 @@ html[data-slide]::view-transition-new(root) { animation: yourss-slide-in .2s eas
 .yourss-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
 .yourss-list li { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .35rem 0; border-bottom: 1px solid var(--line); }
 .yourss-empty { color: var(--fg-muted); font-style: italic; }
+.yourss-sub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.yourss-sub-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .5rem 0; border-bottom: 1px solid var(--line); scroll-margin-top: 4.25rem; }
+.yourss-sub-row:last-child { border-bottom: 0; }
+.yourss-sub-row:focus, .yourss-sub-row:focus-visible, .yourss-account h2:focus, .yourss-account h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.yourss-sub-row > .yourss-avatar, .yourss-sub-icon { width: 28px; height: 28px; flex: none; border-radius: 50%; }
+.yourss-sub-icon { display: grid; place-items: center; background: var(--bg-elev); color: var(--fg-muted); }
+.yourss-sub-icon svg { width: 18px; height: 18px; }
+.yourss-sub-icon.is-warning { color: var(--amber); }
+.yourss-sub-identity { flex: 1 1 12rem; min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+.yourss-sub-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yourss-sub-ref { color: var(--fg-muted); font-size: .78rem; overflow-wrap: anywhere; }
+.yourss-sub-reason { color: var(--amber); font-size: .78rem; }
+.yourss-sub-actions { display: flex; align-items: center; gap: .35rem; margin-left: auto; flex-wrap: wrap; }
+.yourss-sub-actions form { display: inline-flex; flex-direction: row; margin: 0; }
+.yourss-sub-actions .yourss-icon-btn { width: 32px; height: 32px; }
+.yourss-sub-actions .yourss-icon-btn:disabled { opacity: .3; }
+.yourss-account h2 { scroll-margin-top: 4.25rem; }
+.yourss-group-note { color: var(--fg-muted); font-size: .85rem; margin: .2rem 0 0; }
+.yourss-add-error { color: var(--amber); font-size: .85rem; margin: .1rem 0; }
+.yourss-add-hint { margin: -.15rem 0 .2rem; }
+@media (pointer: coarse) {
+  .yourss-sub-actions .yourss-btn, .yourss-follow-card .yourss-btn { min-height: 44px; }
+  .yourss-sub-actions .yourss-icon-btn { width: 44px; height: 44px; }
+}
+@media (max-width: 559px) {
+  .yourss-sub-actions { width: 100%; margin-left: 0; }
+  .yourss-sub-actions .yourss-btn { min-height: 44px; }
+}
 .yourss-table-wrap { overflow-x: auto; }
 .yourss-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .yourss-table th, .yourss-table td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }

@@ -45,6 +45,9 @@
       <svg><use href="#i-reset" /></svg><span>Reset settings and watched videos</span>
     </button>
     {% if user %}
+    <a class="yourss-btn yourss-account-link" href="/account" title="Your account">
+      <svg><use href="#i-user" /></svg><span>Your account</span>
+    </a>
     <form class="yourss-logout" method="post" action="/logout">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <button type="submit" class="yourss-btn yourss-reset-btn" title="Forget this browser session">

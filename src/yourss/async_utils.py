@@ -1,6 +1,9 @@
 import asyncio
+from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from time import perf_counter
+from typing import Any
 
 from httpx import HTTPError, HTTPStatusError, TimeoutException
 from loguru import logger
@@ -10,6 +13,17 @@ from starlette.status import HTTP_404_NOT_FOUND
 from .settings import current_config
 from .youtube import ChannelDescription, Feed, ScrapingError, YoutubeApi, is_channel_id, is_playlist_id, is_user
 from .youtube.cache import known_channel
+
+
+async def _gather_limited(coros: list[Awaitable[Any]], limit: int = 10) -> list[Any]:
+    """Gather with a small bound: a page never opens one connection per subscription at once."""
+    semaphore = asyncio.Semaphore(limit)
+
+    async def run(coro: Awaitable[Any]) -> Any:
+        async with semaphore:
+            return await coro
+
+    return await asyncio.gather(*(run(coro) for coro in coros), return_exceptions=True)
 
 
 class Kind(StrEnum):
@@ -105,11 +119,10 @@ def _fetched(name: str, kind: Kind, feed: Feed, resolved: ChannelDescription | N
 
 async def async_fetch(names: list[str], api: YoutubeApi, *, refresh: bool = False) -> list[SubscriptionStatus]:
     """One status per name of the page, in its order: the feeds come first, the metadata is read from the cache."""
+    started = perf_counter()
     # A handle (user pages only) must be resolved to its id before its feed can be asked
     handles = [name for name in names if is_user(name)]
-    resolved = dict(
-        zip(handles, await asyncio.gather(*[api.get_channel(h) for h in handles], return_exceptions=True), strict=True)
-    )
+    resolved = dict(zip(handles, await _gather_limited([api.get_channel(h) for h in handles]), strict=True))
 
     targets: dict[str, str] = {}
     for name in names:
@@ -122,14 +135,13 @@ async def async_fetch(names: list[str], api: YoutubeApi, *, refresh: bool = Fals
     feeds = dict(
         zip(
             targets,
-            await asyncio.gather(
-                *[
+            await _gather_limited(
+                [
                     api.get_playlist_rss(t, refresh=refresh)
                     if is_playlist_id(t)
                     else api.get_channel_rss(t, refresh=refresh)
                     for t in targets.values()
-                ],
-                return_exceptions=True,
+                ]
             ),
             strict=True,
         )
@@ -154,4 +166,5 @@ async def async_fetch(names: list[str], api: YoutubeApi, *, refresh: bool = Fals
             out.append(
                 _fetched(name, kind, result, description if isinstance(description, ChannelDescription) else None)
             )
+    logger.info("Fetched {} subscriptions in {:.2f}s", len(names), perf_counter() - started)
     return out

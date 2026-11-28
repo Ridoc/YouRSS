@@ -5,8 +5,8 @@ replicaCount: 1
 yourss:
   image:
     repository: ghcr.io/ridoc/yourss
-    # Immutable delivery tag for the 2026-11-21 rollout.
-    tag: "2026.11.26.7"
+    # Immutable delivery tag for the 2026-11-28 subscription-manager rollout.
+    tag: "2026.11.28.1"
     pullPolicy: IfNotPresent
   timezone: Europe/Paris
   logLevel: INFO

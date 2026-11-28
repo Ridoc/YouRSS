@@ -1,0 +1,7 @@
+{% if user and user.username == user_name %}
+<li class="yourss-manage">
+  <a class="yourss-nav-item yourss-manage-link" href="/account/pages/{{ folder.name|urlencode|replace('/', '%2F') }}" title="Manage subscriptions of {{ folder.name }}" aria-label="Manage subscriptions of {{ folder.name }}">
+    <svg><use href="#i-edit" /></svg><span class="yourss-label">Manage subscriptions</span>
+  </a>
+</li>
+{% endif %}

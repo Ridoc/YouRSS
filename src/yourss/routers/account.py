@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import sqlite3
 from typing import Annotated
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from httpx import HTTPError, HTTPStatusError, TimeoutException
 from starlette.status import HTTP_303_SEE_OTHER, HTTP_404_NOT_FOUND
 
 from .. import accounts
+from ..async_utils import async_fetch
 from ..settings import current_config
 from ..subscriptions import (
+    DuplicateError,
+    LimitError,
     SubscriptionError,
     add_subscription,
     create_page,
@@ -21,6 +25,7 @@ from ..subscriptions import (
     get_page,
     list_pages,
     list_subscriptions,
+    move_subscription,
     rename_page,
     reorder_subscriptions,
     set_publish,
@@ -31,10 +36,32 @@ from .jinja import template_page
 
 router = APIRouter()
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
+NOTICE_MESSAGES = {
+    "added": "Added to this page.",
+    "removed": "Removed from this page.",
+    "moved": "Order updated.",
+}
+ADD_ERROR_MESSAGES = {
+    "required": "Paste a handle, a channel or playlist ID, or a YouTube link.",
+    "format": "Use @handle, UC..., PL... or a YouTube link.",
+    "not_found": "No channel or playlist matches that. Check the handle or the link.",
+    "duplicate": "This page already follows that channel or playlist.",
+    "cap": "This page already follows the maximum number of channels and playlists. Remove one to follow another.",
+    "network": "YouTube did not answer. Try again in a moment.",
+}
 
 
 def _redirect(path: str) -> RedirectResponse:
     return RedirectResponse(path, status_code=HTTP_303_SEE_OTHER)
+
+
+def _editor_path(name: str) -> str:
+    return f"/account/pages/{quote(name, safe='')}"
+
+
+def _editor_redirect(name: str, **params: str) -> RedirectResponse:
+    query = urlencode({key: value for key, value in params.items() if value})
+    return _redirect(f"{_editor_path(name)}?{query}" if query else _editor_path(name))
 
 
 def _error(request: Request, message: str, *, status: int = 400) -> HTMLResponse:
@@ -252,13 +279,44 @@ async def page_editor(
     if page is None:
         raise HTTPException(HTTP_404_NOT_FOUND, "Page not found")
     subscriptions = await list_subscriptions(db, int(page["id"]))
+    names = [str(subscription["canonical_id"] or subscription["ref"]) for subscription in subscriptions]
+    statuses = await async_fetch(names, api=YoutubeApi())
+    rows = [
+        {
+            "id": int(subscription["id"]),
+            "ref": str(subscription["ref"]),
+            "kind": str(subscription["kind"]),
+            "label": status.label,
+            "channel": status.channel,
+            "state": status.state,
+            "reason": status.reason,
+            "stale": status.stale,
+            "failed": status.failed,
+            "age": status.age,
+        }
+        for subscription, status in zip(subscriptions, statuses, strict=True)
+    ]
+    # WHY: a failed feed can still have a known name; only label-None rows are truly unresolved.
+    channels = [row for row in rows if row["kind"] == "channel" and row["label"] is not None]
+    playlists = [row for row in rows if row["kind"] == "playlist" and row["label"] is not None]
+    unresolved = sorted((row for row in rows if row["label"] is None), key=lambda row: str(row["ref"]))
+    notice = NOTICE_MESSAGES.get(request.query_params.get("notice", ""))
+    add_error = ADD_ERROR_MESSAGES.get(request.query_params.get("add_error", ""))
     return template_page(
         request,
         "pages/account-page.jinja-html",
         title=f"Edit {page['name']}",
         account=user,
         page=page,
-        subscriptions=subscriptions,
+        rows=rows,
+        channels=channels,
+        playlists=playlists,
+        unresolved=unresolved,
+        total=len(rows),
+        notice=notice,
+        add_error=add_error,
+        add_ref=request.query_params.get("ref", ""),
+        cap_reached=len(rows) >= current_config.max_page_subscriptions,
         max_subscriptions=current_config.max_page_subscriptions,
     )
 
@@ -318,14 +376,23 @@ async def add_subscription_route(
     page = await get_page(db, user.id, name)
     if page is None:
         raise HTTPException(HTTP_404_NOT_FOUND, "Page not found")
+    if not ref.strip():
+        return _editor_redirect(name, add_error="required")
     try:
         kind, canonical = await _resolve_ref(ref)
-        await add_subscription(db, current_config, int(page["id"]), ref, canonical, kind=kind)
-    except (SubscriptionError, ValueError) as error:
-        return _error(request, str(error))
-    except Exception:
-        return _error(request, "That channel or playlist could not be resolved.")
-    return _redirect(f"/account/pages/{name}")
+        subscription = await add_subscription(db, current_config, int(page["id"]), ref, canonical, kind=kind)
+    except DuplicateError:
+        return _editor_redirect(name, add_error="duplicate", ref=ref)
+    except LimitError:
+        return _editor_redirect(name, add_error="cap", ref=ref)
+    except HTTPStatusError as error:
+        code = "not_found" if error.response.status_code == HTTP_404_NOT_FOUND else "network"
+        return _editor_redirect(name, add_error=code, ref=ref)
+    except (HTTPError, TimeoutException):
+        return _editor_redirect(name, add_error="network", ref=ref)
+    except (SubscriptionError, ValueError):
+        return _editor_redirect(name, add_error="format", ref=ref)
+    return _redirect(f"{_editor_path(name)}?notice=added#subscription-{int(subscription['id'])}")
 
 
 @router.post("/account/pages/{name}/subscriptions/{subscription_id}/delete", response_model=None)
@@ -341,11 +408,43 @@ async def delete_subscription_route(
     page = await get_page(db, user.id, name)
     if page is None:
         raise HTTPException(HTTP_404_NOT_FOUND, "Page not found")
+    target = await db.fetchone(
+        "SELECT kind FROM subscriptions WHERE page_id = ? AND id = ?",
+        (int(page["id"]), subscription_id),
+    )
+    if target is None:
+        raise HTTPException(HTTP_404_NOT_FOUND, "Subscription not found")
+    kind = str(target["kind"])
     try:
         await delete_subscription(db, int(page["id"]), subscription_id)
     except SubscriptionError as error:
         return _error(request, str(error))
-    return _redirect(f"/account/pages/{name}")
+    return _redirect(f"{_editor_path(name)}?notice=removed#group-{kind}s")
+
+
+@router.post("/account/pages/{name}/subscriptions/{subscription_id}/move", response_model=None)
+async def move_subscription_route(
+    request: Request,
+    name: str,
+    subscription_id: int,
+    user: accounts.Account = Depends(accounts.require_user),
+    direction: Annotated[str, Form()] = "",
+    csrf_token: Annotated[str, Form()] = "",
+) -> HTMLResponse | RedirectResponse:
+    accounts.validate_csrf(request, csrf_token)
+    db = request.app.state.db
+    page = await get_page(db, user.id, name)
+    if page is None:
+        raise HTTPException(HTTP_404_NOT_FOUND, "Page not found")
+    if direction not in {"up", "down"}:
+        return _error(request, "direction must be up or down")
+    try:
+        moved = await move_subscription(db, int(page["id"]), subscription_id, direction)
+    except SubscriptionError as error:
+        raise HTTPException(HTTP_404_NOT_FOUND, "Subscription not found") from error
+    if moved:
+        return _redirect(f"{_editor_path(name)}?notice=moved#subscription-{subscription_id}")
+    return _redirect(f"{_editor_path(name)}#subscription-{subscription_id}")
 
 
 @router.post("/account/pages/{name}/subscriptions/reorder", response_model=None)
